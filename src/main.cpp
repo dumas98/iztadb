@@ -3,8 +3,10 @@
 //
 
 #include <iostream>
+#include "iztadb.h"
 
 int main() {
     std::cout << "Hello, I'm IztaDB!" << std::endl;
+    unordered_map_commands();
     return 0;
 }
