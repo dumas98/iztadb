@@ -5,20 +5,9 @@
 #include <map>
 #include <string>
 #include <optional>
+#include "iztadb.h"
 
 using namespace std;
-
-// Values in store can only be either an actual VALUE or a TOMBSTONE (for deletes).
-enum class ValueType {
-    VALUE,
-    TOMBSTONE
-};
-
-// Entries consist of the value type and the actual value.
-struct Entry {
-    ValueType type;
-    string value;
-};
 
 /**
  * @brief In-memory write buffer for IztaDB.

@@ -3,4 +3,26 @@
 //
 
 #pragma once
+#include <string>
+
+using namespace std;
 int unordered_map_commands();
+
+/**
+ * @brief Represents the type of stored value.
+ * VALUE indicates a live record
+ * TOMBSTONE indicates a deletion marker
+ */
+enum class ValueType {
+    VALUE,
+    TOMBSTONE
+};
+
+/**
+ * @brief A single record.
+ * Bundles value type (TOMBSTONE or live VALUE) and associated value together.
+ */
+struct Entry {
+    ValueType type;
+    string value;
+};
