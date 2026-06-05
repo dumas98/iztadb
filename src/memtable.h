@@ -9,7 +9,7 @@
 
 
 /**
- * @brief In-memory write buffer for IztaDB.
+ * @brief In-memory write buffer.
  * Stores key-value pairs in a sorted map before flushing to disk as an SSTable.
  * Reads should check the MemTable before consulting SSTables, because it holds
  * most recent writes.

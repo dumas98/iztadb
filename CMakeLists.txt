@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
@@ -25,6 +25,7 @@ target_sources(MainExecutable
         src/memtable.cpp
         src/memtable.h
         src/log_writer.cpp
+        src/log_writer.h
 )
 
 # Setting up Memtable test.

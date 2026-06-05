@@ -5,7 +5,6 @@
 #pragma once
 #include <string>
 
-
 /**
  * @brief Core storage engine.
  * On construction, initializes the required directory structure.
