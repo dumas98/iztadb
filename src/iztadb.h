@@ -6,7 +6,6 @@
 #include <string>
 
 using namespace std;
-int unordered_map_commands();
 
 /**
  * @brief Represents the type of stored value.
