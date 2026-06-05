@@ -9,5 +9,7 @@
 int main() {
     std::cout << "Hello, I'm IztaDB!" << std::endl;
 
+    IztaDB izta_db1 = IztaDB();
+
     return 0;
 }

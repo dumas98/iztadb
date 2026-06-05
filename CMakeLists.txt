@@ -14,13 +14,17 @@ FetchContent_MakeAvailable(googletest)
 
 project(IztaDB)
 
-add_executable(Stage1)
+add_executable(MainExecutable)
 
-target_sources(Stage1
+target_sources(MainExecutable
         PRIVATE
         src/main.cpp
+        src/types.h
+        src/iztadb.cpp
         src/iztadb.h
         src/memtable.cpp
+        src/memtable.h
+        src/log_writer.cpp
 )
 
 # Setting up Memtable test.

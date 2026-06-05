@@ -5,6 +5,8 @@
 #include <gtest/gtest.h>
 #include "memtable.h"
 
+using namespace std;
+
 /**
  * @brief Test fixture for MemTable.
  * Builds a MemTable instance before each test.

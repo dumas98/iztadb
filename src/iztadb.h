@@ -5,23 +5,22 @@
 #pragma once
 #include <string>
 
-using namespace std;
 
 /**
- * @brief Represents the type of stored value.
- * VALUE indicates a live record
- * TOMBSTONE indicates a deletion marker
+ * @brief Core storage engine.
+ * On construction, initializes the required directory structure.
+ *
  */
-enum class ValueType {
-    VALUE,
-    TOMBSTONE
-};
-
-/**
- * @brief A single record.
- * Bundles value type (TOMBSTONE or live VALUE) and associated value together.
- */
-struct Entry {
-    ValueType type;
-    string value;
+class IztaDB {
+    private:
+        std::string data_path;
+    /**
+     * @brief Constructs core storage engine adding the following
+     * directories if they do not exist:
+     *  ./data/wal/  - Storage for Write-ahead log files
+     *  ./data/sst/  - Sorted string table files4
+     *
+     */
+    public:
+        IztaDB();
 };

@@ -2,7 +2,8 @@
 // Created by Daniel Dumas on 02/06/26.
 //
 
-#include "MemTable.h"
+#include "memtable.h"
+using namespace std;
 
 void MemTable::put(const string& key, const string& value) {
     table[key] = { ValueType::VALUE, value };
@@ -24,7 +25,7 @@ void MemTable::remove(const string& key) {
     // Search for key first to avoid writing an empty record.
     auto it = table.find(key);
 
-    // If key exists and its a non-tombstone ValueType, change it to tombstone record.
+    // If key exists, and it's a non-tombstone ValueType, change it to tombstone record.
     if ((it != table.end()) && (it->second.type == ValueType::VALUE)) {
         table[key] = { ValueType::TOMBSTONE, "" };
     }

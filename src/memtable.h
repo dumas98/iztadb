@@ -5,11 +5,8 @@
 #pragma once
 
 #include <map>
-#include <string>
-#include <optional>
-#include "iztadb.h"
+#include "types.h"
 
-using namespace std;
 
 /**
  * @brief In-memory write buffer for IztaDB.
@@ -19,36 +16,36 @@ using namespace std;
  *
  */
 class MemTable {
-private:
-    map<string, Entry> table;
+    private:
+        std::map<std::string, Entry> table;
 
-public:
-    MemTable() = default;
+    public:
+        MemTable() = default;
 
-    /**
-     * @brief Inserts a key value pair into the table.
-     * Overwrites if key already exists.
-     *
-     * @param key the key to insert
-     * @param value the value to insert
-     */
-    void put(const string& key, const string& value);
+        /**
+         * @brief Inserts a key value pair into the table.
+         * Overwrites if key already exists.
+         *
+         * @param key the key to insert
+         * @param value the value to insert
+         */
+        void put(const std::string& key, const std::string& value);
 
-    /**
-     * @brief Retrieves the value associated with a given key.
-     * Returns nothing if the key does not exist or has been deleted.
-     *
-     * @param key the key to search for
-     * @return the value if found, nullopt if key does not exist or is a tombstone
-     */
-    optional<string> get(const string& key);
+        /**
+         * @brief Retrieves the value associated with a given key.
+         * Returns nothing if the key does not exist or has been deleted.
+         *
+         * @param key the key to search for
+         * @return the value if found, nullopt if key does not exist or is a tombstone
+         */
+        std::optional<std::string> get(const std::string& key);
 
-    /**
-     * @brief Marks a key as deleted by writing a tombstone record.
-     * Does not erase the key.
-     *
-     * @param key the key to delete
-     */
-    void remove(const string& key);
+        /**
+         * @brief Marks a key as deleted by writing a tombstone record.
+         * Does not erase the key.
+         *
+         * @param key the key to delete
+         */
+        void remove(const std::string& key);
 };
 
