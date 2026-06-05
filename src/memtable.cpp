@@ -23,6 +23,8 @@ optional<string> MemTable::get(const string& key) {
 void MemTable::remove(const string& key) {
     // Search for key first to avoid writing an empty record.
     auto it = table.find(key);
+
+    // If key exists and its a non-tombstone ValueType, change it to tombstone record.
     if ((it != table.end()) && (it->second.type == ValueType::VALUE)) {
         table[key] = { ValueType::TOMBSTONE, "" };
     }
