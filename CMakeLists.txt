@@ -10,6 +10,8 @@ FetchContent_Declare(
         DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 
+FetchContent_MakeAvailable(googletest)
+
 project(IztaDB)
 
 add_executable(Stage1)
@@ -21,3 +23,19 @@ target_sources(Stage1
         src/iztadb.h
         src/memtable.cpp
 )
+
+# Setting up Memtable test.
+enable_testing()
+
+add_executable(MemTableTest)
+target_sources(MemTableTest
+        PRIVATE
+        tests/memtable_test.cpp
+        src/memtable.cpp
+)
+
+target_include_directories(MemTableTest PRIVATE src)
+target_link_libraries(MemTableTest GTest::gtest_main)
+
+include(GoogleTest)
+gtest_discover_tests(MemTableTest)
