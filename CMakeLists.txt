@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.23)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find packages inside system (required to continue).
+set(ZLIB_ROOT /usr/local/Cellar/zlib/1.3.2)
+find_package(ZLIB REQUIRED)
+
+
+# Get Google Test.
 include(FetchContent)
 FetchContent_Declare(
         googletest
@@ -12,6 +18,7 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
+# Define Project.
 project(IztaDB)
 
 add_executable(MainExecutable)
@@ -27,6 +34,9 @@ target_sources(MainExecutable
         src/log_writer.cpp
         src/log_writer.h
 )
+
+# Add libraries.
+target_link_libraries(MainExecutable PRIVATE ZLIB::ZLIB)
 
 # Setting up Memtable test.
 enable_testing()

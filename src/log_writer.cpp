@@ -7,7 +7,7 @@ using namespace std;
 
 LogWriter::LogWriter() {
     write_path = resolve_active_log_path();
-    sequence_number = get_latest_sequence();
+    next_sequence = get_next_sequence();
 }
 
 int LogWriter::get_max_segment() {
@@ -60,7 +60,7 @@ string LogWriter::get_write_path() {
     return write_path;
 };
 
-uint32_t LogWriter::get_latest_sequence() {
+uint32_t LogWriter::get_next_sequence() {
     int max_file = get_max_segment();
 
     // If no files exist, start at 1.
@@ -80,10 +80,47 @@ uint32_t LogWriter::get_latest_sequence() {
     // Jump to start of last record, convert first to signed int.
     file.seekg(-static_cast<int>(sizeof(WALRecord)), ios::end);
 
-    // Read only the sequence number (first 4 bytes), convert sequence address
-    // to the first char (byte).
+    // Convert sequence address to char*.
+    // Read only the sequence number (first 4 bytes).
     uint32_t sequence_number;
     file.read(reinterpret_cast<char*>(&sequence_number),sizeof(uint32_t));
 
     return sequence_number + 1;
 }
+
+uint32_t LogWriter:: calculate_crc32(WALRecord record) {
+    // Set to zero so contents match when reading.
+    record.checksum = 0;
+
+    // Start from 0, insert the address of record copy and scan the size of WALRecord.
+    return crc32(0, reinterpret_cast<const Bytef*>(&record), sizeof(WALRecord));
+};
+
+void LogWriter::write_record(const std::string& key, const std::string& value, ValueType type) {
+    // Assign data for individual record.
+    WALRecord record;
+    record.sequence_number = next_sequence;
+    record.type = static_cast<uint8_t>(type);
+
+    // Copies raw bytes from key to record.key, uses null terminator ('\0') for unoccupied bytes.
+    // c_str() is const char* pointing to first char of String.
+    // Repeats for record.value.
+    strncpy(record.key, key.c_str(), sizeof(record.key));
+    strncpy(record.value, value.c_str(), sizeof(record.value));
+
+    // Assign checksum value after record has all data.
+    record.checksum =  calculate_crc32(record);
+
+    // Open file, binary mode, output operations happen at the end.
+    ofstream file(write_path, ios::binary | ios::app);
+
+    // Write to file record data, converting to char* WALRecord*
+    file.write(reinterpret_cast<char*>(&record), sizeof(WALRecord));
+    file.close();
+
+    // Add one to next_sequence attribute so it's use for next write record.
+    next_sequence ++;
+
+    // After record is written recalculate write path.
+    write_path = resolve_active_log_path();
+};
