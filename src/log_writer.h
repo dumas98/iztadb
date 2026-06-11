@@ -35,6 +35,7 @@ struct WALRecord {
 
 /**
  * @brief Manages write operations to the Write-Ahead Log (WAL).
+ * 
  * On construction, resolves the active log file by scanning the WAL
  * directory for the latest file (contains the highest number).
  * Appends only one record to such file.

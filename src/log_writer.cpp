@@ -118,7 +118,7 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     file.write(reinterpret_cast<char*>(&record), sizeof(WALRecord));
     file.close();
 
-    // Add one to next_sequence attribute so it's use for next write record.
+    // Add one to next_sequence attribute so it's used for next write record.
     next_sequence ++;
 
     // After record is written recalculate write path.
