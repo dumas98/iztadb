@@ -4,9 +4,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find packages inside system (required to continue).
-set(ZLIB_ROOT /usr/local/Cellar/zlib/1.3.2)
+set(ZLIB_ROOT /opt/homebrew/opt/zlib)
 find_package(ZLIB REQUIRED)
-
 
 # Get Google Test.
 include(FetchContent)

@@ -3,10 +3,12 @@
 //
 
 #include "log_writer.h"
+#include <iostream>
 using namespace std;
 
-LogWriter::LogWriter(const std::string& wal_path, uintmax_t max_wal_file_size)
-    : wal_path(wal_path), max_wal_file_size(max_wal_file_size) {
+LogWriter::LogWriter(const std::string& wal_path, uintmax_t max_wal_file_size) {
+    this->wal_path = wal_path;
+    this->max_wal_file_size = max_wal_file_size;
     latest_segment_num = calculate_latest_segment();
     write_path = resolve_active_log_path();
     next_sequence = calculate_next_sequence();
@@ -81,7 +83,7 @@ uint32_t LogWriter::calculate_next_sequence() {
     return sequence_number + 1;
 }
 
-uint32_t LogWriter:: calculate_crc32(WALRecord record) {
+uint32_t LogWriter::calculate_crc32(WALRecord record) {
     // Set to zero so contents match when reading.
     record.checksum = 0;
 
@@ -114,6 +116,9 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     // Add one to next_sequence attribute so it's used for next write record.
     next_sequence ++;
 
+    // Recalculate latest segment.
+    latest_segment_num = calculate_latest_segment();
+
     // After record is written recalculate write path.
     write_path = resolve_active_log_path();
 };
@@ -134,7 +139,7 @@ uint32_t LogWriter::get_next_sequence() {
     return next_sequence;
 }
 
-int LogWriter::get_max_file() {
+int LogWriter::get_latest_segment_num() {
     return latest_segment_num;
 }
 

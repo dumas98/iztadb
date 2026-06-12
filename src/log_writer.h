@@ -9,8 +9,6 @@
 #include <zlib.h>
 #include "types.h"
 
-const uintmax_t MAX_WAL_FILE_SIZE = 100; // Small size to test.
-
 /**
  * @brief Represents a single record in the Write-Ahead Log.
  *
@@ -63,11 +61,11 @@ class LogWriter {
          * sequence to 1 and creates 000001.log on first write.
          *
          * @param wal_path Path to the WAL directory. Defaults to "./data/wal".
-         * @param max_size Maximum segment size in bytes before rotation. Defaults to MAX_WAL_FILE_SIZE.
+         * @param max_wal_file_size Maximum segment size in bytes before rotation. Defaults to 32MB.
          */
         explicit LogWriter(
                         const std::string& wal_path = "./data/wal",
-                        uintmax_t max_size = MAX_WAL_FILE_SIZE
+                        uintmax_t max_wal_file_size = 32 * 1024 * 1024  // 32MB
                         );
 
 
@@ -158,7 +156,7 @@ class LogWriter {
          * @brief Returns the highest numbered log segment.
          * @return Max segment number, 0 if no segments exist.
          */
-        int get_max_file();
+        int get_latest_segment_num();
 };
 
 
