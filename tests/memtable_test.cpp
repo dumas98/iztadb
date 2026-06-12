@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 #include "memtable.h"
+#include <fstream>
+#include <filesystem>
 
 using namespace std;
 

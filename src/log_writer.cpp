@@ -5,18 +5,19 @@
 #include "log_writer.h"
 using namespace std;
 
-LogWriter::LogWriter() {
+LogWriter::LogWriter(const std::string& wal_path, uintmax_t max_wal_file_size)
+    : wal_path(wal_path), max_wal_file_size(max_wal_file_size) {
+    latest_segment_num = calculate_latest_segment();
     write_path = resolve_active_log_path();
-    next_sequence = get_next_sequence();
+    next_sequence = calculate_next_sequence();
 }
 
-int LogWriter::get_max_segment() {
-    string wal_path = "./data/wal";
-    int max_file = 0;
+int LogWriter::calculate_latest_segment() {
+    int latest_segment_num = 0;
 
     // No files exist, use zero.
     if (filesystem::is_empty(wal_path)) {
-        return max_file;
+        return latest_segment_num;
     }
 
     // Iterate through each directory to get max (corresponds to latest file).
@@ -27,49 +28,41 @@ int LogWriter::get_max_segment() {
         // Get only file name without extension with stem() and convert to integer.
         int num = std::stoi(dir_entry.path().stem());
 
-        if (num > max_file) {
-            max_file = num;
+        if (num > latest_segment_num) {
+            latest_segment_num = num;
         }
     }
 
-    return max_file;
+    return latest_segment_num;
 }
 
-string LogWriter::resolve_active_log_path(uintmax_t max_size) {
-    string wal_path = "./data/wal";
-    int max_file = get_max_segment();
-
+string LogWriter::resolve_active_log_path() {
     // No files exist, start fresh.
-    if (max_file == 0) {
+    if (latest_segment_num == 0) {
         return wal_path + "/000001.log";
     }
 
     // Build latest file path.
-    string latest_file_path = wal_path + "/" + format("{:06d}.log", max_file);
+    string latest_file_path = wal_path + "/" + format("{:06d}.log", latest_segment_num);
 
     // Return latest file path if file size is smaller than threshold.
-    if (filesystem::file_size(latest_file_path) < max_size) {
+    if (filesystem::file_size(latest_file_path) < max_wal_file_size) {
         return latest_file_path;
     }
 
     // Add a one to max file so a new file can be created.
-    return wal_path + "/" + format("{:06d}.log", max_file + 1);
+    return wal_path + "/" + format("{:06d}.log", latest_segment_num + 1);
 }
 
-string LogWriter::get_write_path() {
-    return write_path;
-};
-
-uint32_t LogWriter::get_next_sequence() {
-    int max_file = get_max_segment();
+uint32_t LogWriter::calculate_next_sequence() {
 
     // If no files exist, start at 1.
-    if (max_file == 0) {
+    if (latest_segment_num == 0) {
         return 1;
     }
 
     // Open latest segment.
-    string latest_path = "./data/wal/" + format("{:06d}.log", max_file);
+    string latest_path = wal_path + format("{:06d}.log", latest_segment_num);
     ifstream file(latest_path, ios::binary);
 
     // Throw error if opening file fails.
@@ -124,3 +117,24 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     // After record is written recalculate write path.
     write_path = resolve_active_log_path();
 };
+
+string LogWriter::get_wal_path() {
+    return wal_path;
+}
+
+uintmax_t LogWriter::get_max_wal_file_size() {
+    return max_wal_file_size;
+}
+
+string LogWriter::get_write_path() {
+    return write_path;
+}
+
+uint32_t LogWriter::get_next_sequence() {
+    return next_sequence;
+}
+
+int LogWriter::get_max_file() {
+    return latest_segment_num;
+}
+

@@ -35,7 +35,7 @@ struct WALRecord {
 
 /**
  * @brief Manages write operations to the Write-Ahead Log (WAL).
- * 
+ *
  * On construction, resolves the active log file by scanning the WAL
  * directory for the latest file (contains the highest number).
  * Appends only one record to such file.
@@ -48,21 +48,35 @@ struct WALRecord {
  */
 class LogWriter {
     private:
+        std::string wal_path;
+        uintmax_t max_wal_file_size;
         std::string write_path;
         uint32_t next_sequence;
+        int latest_segment_num;
 
     public:
         /**
-         * @brief Constructs the LogWriter.
-         * Calls resolve_log_path to open the active log file.
+         * @brief Constructs the LogWriter and initializes WAL state.
+         *
+         * Resolves the active log segment, reads the latest sequence number
+         * from disk and increments it. If no segments exist initializes
+         * sequence to 1 and creates 000001.log on first write.
+         *
+         * @param wal_path Path to the WAL directory. Defaults to "./data/wal".
+         * @param max_size Maximum segment size in bytes before rotation. Defaults to MAX_WAL_FILE_SIZE.
          */
-        LogWriter();
+        explicit LogWriter(
+                        const std::string& wal_path = "./data/wal",
+                        uintmax_t max_size = MAX_WAL_FILE_SIZE
+                        );
+
 
         /**
          * @brief Returns the highest numbered log segment in the WAL directory.
+         *
          * @return Max segment number, 0 if directory is empty.
          */
-        static int get_max_segment();
+        int calculate_latest_segment();
 
         /**
          * @brief Resolves the path of the active log file.
@@ -75,14 +89,7 @@ class LogWriter {
          *
          * @return Full path to the active log file.
          */
-        static std::string resolve_active_log_path(uintmax_t max_size = MAX_WAL_FILE_SIZE);
-
-        /**
-         * @brief Returns the path of the active log file for writing.
-         *
-         * @return Full path to the active log file.
-         */
-        std::string get_write_path();
+        std::string resolve_active_log_path();
 
         /**
          * @brief Retrieves the next available sequence number.
@@ -94,7 +101,7 @@ class LogWriter {
          * @return Next sequence number to use for the upcoming write.
          * @throws std::runtime_error if the latest WAL segment cannot be opened.
          */
-        static uint32_t get_next_sequence();
+        uint32_t calculate_next_sequence();
 
         /**
          * @brief Calculates CRC32 checksum for a WAL record.
@@ -122,6 +129,36 @@ class LogWriter {
          * @param type The record type, either VALUE or TOMBSTONE.
          */
         void write_record(const std::string& key, const std::string& value, ValueType type);
+
+        /**
+         * @brief Returns the WAL directory path.
+         * @return Path to the WAL directory.
+         */
+        std::string get_wal_path();
+
+        /**
+         * @brief Returns the maximum WAL file size before rotation.
+         * @return Maximum file size in bytes.
+         */
+        uintmax_t get_max_wal_file_size();
+
+        /**
+         * @brief Returns the path of the active log file for writing.
+         * @return Full path to the active log file.
+         */
+        std::string get_write_path();
+
+        /**
+         * @brief Returns the next sequence number to be used for writing.
+         * @return Next sequence number.
+         */
+        uint32_t get_next_sequence();
+
+        /**
+         * @brief Returns the highest numbered log segment.
+         * @return Max segment number, 0 if no segments exist.
+         */
+        int get_max_file();
 };
 
 

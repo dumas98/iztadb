@@ -26,21 +26,21 @@ add_executable(MainExecutable)
 target_sources(MainExecutable
         PRIVATE
         src/main.cpp
-        src/types.h
         src/iztadb.cpp
-        src/iztadb.h
         src/memtable.cpp
-        src/memtable.h
         src/log_writer.cpp
-        src/log_writer.h
 )
+
+target_include_directories(MainExecutable PRIVATE src)
 
 # Add libraries.
 target_link_libraries(MainExecutable PRIVATE ZLIB::ZLIB)
 
-# Setting up Memtable test.
+# Setting up Tests.
 enable_testing()
+include(GoogleTest)
 
+# MemTable.
 add_executable(MemTableTest)
 target_sources(MemTableTest
         PRIVATE
@@ -51,5 +51,15 @@ target_sources(MemTableTest
 target_include_directories(MemTableTest PRIVATE src)
 target_link_libraries(MemTableTest GTest::gtest_main)
 
-include(GoogleTest)
 gtest_discover_tests(MemTableTest)
+
+# LogWriter.
+add_executable(LogWriterTest)
+target_sources(LogWriterTest
+        PRIVATE
+        tests/log_writer_test.cpp
+        src/log_writer.cpp
+)
+target_include_directories(LogWriterTest PRIVATE src)
+target_link_libraries(LogWriterTest GTest::gtest_main ZLIB::ZLIB)
+gtest_discover_tests(LogWriterTest)
