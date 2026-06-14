@@ -70,7 +70,28 @@ class LogWriterTest : public testing::Test {
     }
     };
 
-// Verifies Default Constructor variables are assigned correctly.
+    // Write sample records to WAL.
+    void write_sample_records(int number_of_writes, LogWriter* log_writer) {
+        for (int i = 1; i <= number_of_writes; i++) {
+            std::string key = "key" + std::to_string(i);
+            std::string value = "value" + std::to_string(i);
+            ValueType type;
+
+            // Odd numbers get VALUE, even numbers get TOMBSTONE.
+            if (i % 2 == 0) {
+                type = ValueType::TOMBSTONE;
+            } else {
+                type = ValueType::VALUE;
+            }
+            log_writer->write_record(key, value, type);
+        }
+    }
+
+
+
+// 1. Test constructors
+
+// Verifies default constructor attributes are assigned correctly.
 // Only test wal_path and file size.
 TEST_F(LogWriterTest, DefaultConstructorInitializesCorrectly) {
     LogWriter default_log_writer;
@@ -80,12 +101,14 @@ TEST_F(LogWriterTest, DefaultConstructorInitializesCorrectly) {
 
 // Test each attribute from non-default constructor.
 TEST_F(LogWriterTest, NonDefaultConstructorInitializesCorrectly) {
-    EXPECT_EQ(log_writer1->get_wal_path(), "./test_data/wal");
+    EXPECT_EQ(log_writer1->get_wal_path(), "./test_data/wal1");
     EXPECT_EQ(log_writer1->get_max_wal_file_size(), sizeof(WALRecord));
     EXPECT_EQ(log_writer1->get_next_sequence(), 1);
     EXPECT_EQ(log_writer1->get_latest_segment_num(), 0);
-    EXPECT_EQ(log_writer1->get_write_path(), "./test_data/wal/000001.log");
+    EXPECT_EQ(log_writer1->get_write_path(), "./test_data/wal1/000001.log");
 }
+
+// 2. Test Attributes Rotation
 
 // Rotation should happen after one record since max_size equals exactly one record size.
 TEST_F(LogWriterTest, RotationAtExactRecordSize) {
@@ -124,44 +147,30 @@ TEST_F(LogWriterTest, NoRotationWithTwoRecordsPerFile) {
 
 // Test writing multiple records, attributes and file count match rotations.
 TEST_F(LogWriterTest, WriteMultipleRecordsCorrectAttributes) {
-    // Insert 2026 records alternating VALUE and TOMBSTONE.
-    for (int i = 1; i <= 2026; i++) {
-        std::string key = "key" + std::to_string(i);
-        std::string value = "value" + std::to_string(i);
-        ValueType type;
-
-        // Odd numbers get VALUE, even numbers get TOMBSTONE.
-        if (i % 2 == 0) {
-            type = ValueType::TOMBSTONE;
-        } else {
-            type = ValueType::VALUE;
-        }
-
-        log_writer1->write_record(key, value, type);
-        log_writer_half->write_record(key, value, type);
-        log_writer1_half->write_record(key, value, type);
-        log_writer2->write_record(key, value, type);
-    }
 
     // One record per file -> 2026 files, next path is 002027.log.
+    write_sample_records(2026, log_writer1);
     EXPECT_EQ(count_files("./test_data/wal1"), 2026);
     EXPECT_EQ(log_writer1->get_next_sequence(), 2027);
     EXPECT_EQ(log_writer1->get_latest_segment_num(), 2026);
     EXPECT_EQ(log_writer1->get_write_path(), "./test_data/wal1/002027.log");
 
     // Below record size -> same as one record per file.
+    write_sample_records(2026, log_writer_half);
     EXPECT_EQ(count_files("./test_data/wal_half"), 2026);
     EXPECT_EQ(log_writer_half->get_next_sequence(), 2027);
     EXPECT_EQ(log_writer_half->get_latest_segment_num(), 2026);
     EXPECT_EQ(log_writer_half->get_write_path(), "./test_data/wal_half/002027.log");
 
     // 1.5x record size -> two records per file since one record isn't enough for threshold.
+    write_sample_records(2026, log_writer1_half);
     EXPECT_EQ(count_files("./test_data/wal1_half"), 1013);
     EXPECT_EQ(log_writer1_half->get_next_sequence(), 2027);
     EXPECT_EQ(log_writer1_half->get_latest_segment_num(), 1013);
     EXPECT_EQ(log_writer1_half->get_write_path(), "./test_data/wal1_half/001014.log");
 
     // Two records per file -> 1013 files.
+    write_sample_records(2026, log_writer2);
     EXPECT_EQ(count_files("./test_data/wal2"), 1013);
     EXPECT_EQ(log_writer2->get_next_sequence(), 2027);
     EXPECT_EQ(log_writer2->get_latest_segment_num(), 1013);
@@ -170,22 +179,148 @@ TEST_F(LogWriterTest, WriteMultipleRecordsCorrectAttributes) {
 
 // Test actual 32MB threshold with 85K records.
 TEST_F(LogWriterTest, RotationWith32MBThreshold) {
-    LogWriter* log_writer_32mb = new LogWriter("./test_data/wal_32mb", 32 * 1024 * 1024);
-    std::filesystem::create_directories("./test_data/wal_32mb");
 
     // Insert enough records to trigger exactly one rotation.
-    for (int i = 1; i <= 85381; i++) {
-        std::string key = "key" + std::to_string(i);
-        std::string value = "value" + std::to_string(i);
-        if (i % 2 == 0) {
-            log_writer_32mb->write_record(key, value, ValueType::TOMBSTONE);
-        } else {
-            log_writer_32mb->write_record(key, value, ValueType::VALUE);
-        }
-    }
-
+    write_sample_records(85381, log_writer_32mb);
     EXPECT_EQ(count_files("./test_data/wal_32mb"), 1);
     EXPECT_EQ(log_writer_32mb->get_latest_segment_num(), 1);
     EXPECT_EQ(log_writer_32mb->get_write_path(), "./test_data/wal_32mb/000002.log");
     EXPECT_EQ(log_writer_32mb->get_next_sequence(), 85382);
 }
+
+// 3. Test Checksum
+
+// Checksum is positive non-zero after write.
+TEST_F(LogWriterTest, NonZeroChecksumAfterWrite) {
+
+    write_sample_records(100, log_writer_32mb);
+
+    // Open file.
+    ifstream file(log_writer_32mb->get_write_path(), ios::binary);
+
+    WALRecord wal_record;
+
+    // Read all records sequentially.
+    while(file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord))) {
+        // Calculated checksum can't be zero.
+        EXPECT_NE(wal_record.checksum, 0);
+    }
+
+    file.close();
+}
+
+// Two identical records have different checksum value.
+TEST_F(LogWriterTest, SameRecordsProduceDifferentChecksum) {
+
+    // Write two identical records.
+    log_writer_32mb->write_record("username", "daniel", ValueType::VALUE);
+    log_writer_32mb->write_record("username", "daniel", ValueType::VALUE);
+
+    // Open file.
+    ifstream file(log_writer_32mb->get_write_path(), ios::binary);
+
+    // Read the checksum of each record.
+    WALRecord wal_record;
+    file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+    uint32_t first_record_crc32 = wal_record.checksum;
+
+    file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+    uint32_t second_record_crc32 = wal_record.checksum;
+
+    file.close();
+
+    // Checksums must match.
+    EXPECT_NE(first_record_crc32, second_record_crc32);
+}
+
+// Two identical records have different checksum value.
+TEST_F(LogWriterTest, DifferentRecordsProduceDifferentChecksum) {
+
+    // Write two identical records.
+    log_writer_32mb->write_record("username", "daniel", ValueType::VALUE);
+    log_writer_32mb->write_record("username", "daniel", ValueType::TOMBSTONE);
+
+    // Open file.
+    ifstream file(log_writer_32mb->get_write_path(), ios::binary);
+
+    // Read the checksum of each record.
+    WALRecord wal_record;
+    file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+    uint32_t first_record_crc32 = wal_record.checksum;
+
+    file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+    uint32_t second_record_crc32 = wal_record.checksum;
+
+    file.close();
+
+    // Checksums must match.
+    EXPECT_NE(first_record_crc32, second_record_crc32);
+}
+
+// Recalculate checksum after write and it must match.
+TEST_F(LogWriterTest, RoundTripChecksumMatches) {
+
+    // Write one record.
+    log_writer_32mb->write_record("username", "daniel", ValueType::VALUE);
+
+    // Open file.
+    ifstream file(log_writer_32mb->get_write_path(), ios::binary);
+
+    // Read checksum.
+    WALRecord wal_record;
+    file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+    uint32_t original_checksum = wal_record.checksum;
+
+    file.close();
+
+    // Recalculate checksum.
+    uint32_t recalculated_checksum = LogWriter::calculate_crc32(wal_record);
+
+    EXPECT_EQ(recalculated_checksum, original_checksum);
+}
+
+// 4. File corruption, partial writes.
+
+// Corrupt file.
+TEST_F(LogWriterTest, FileCorruptionKeys) {
+
+        // Write one record.
+        log_writer_32mb->write_record("username", "daniel", ValueType::VALUE);
+
+        // Open file.
+        fstream file(log_writer_32mb->get_write_path(), ios::binary | ios::in | ios::out);
+
+        // Get calculated checksum.
+        WALRecord wal_record;
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+        uint32_t original_checksum = wal_record.checksum;
+
+        // Jump to the start of the key field.
+        file.seekp(offsetof(WALRecord, key));
+
+        // Insert in beginning of key AA -> "AA\0rname", remember char array decays to pointer of
+        // first element.
+        char corrupt[3] = "AA";
+        file.write(corrupt,sizeof(corrupt));
+
+        // Return to beginning of file.
+        file.seekg(0);
+
+        // Get record.
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+
+        file.close();
+
+        // Recalculate Checksum.
+        uint32_t recalculated_checksum = LogWriter::calculate_crc32(wal_record);
+
+        string("AA\0rname", 8);
+
+        EXPECT_NE(recalculated_checksum, original_checksum);
+
+        // New record is corrupted username.
+        string corrupted_string("AA\0rname", 8);
+        string wal_record_key(wal_record.key, 8);
+        EXPECT_EQ(corrupted_string, wal_record_key);
+    }
+

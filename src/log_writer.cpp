@@ -80,6 +80,8 @@ uint32_t LogWriter::calculate_next_sequence() {
     uint32_t sequence_number;
     file.read(reinterpret_cast<char*>(&sequence_number),sizeof(uint32_t));
 
+    file.close();
+
     return sequence_number + 1;
 }
 
