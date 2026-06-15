@@ -21,6 +21,7 @@ class LogWriterTest : public testing::Test {
     LogWriter* log_writer_half;
     LogWriter* log_writer1_half;
     LogWriter* log_writer2;
+    LogWriter* log_writer4;
     LogWriter* log_writer_32mb;
 
     // Before Each.
@@ -32,6 +33,7 @@ class LogWriterTest : public testing::Test {
         std::filesystem::create_directories("./test_data/wal_half");
         std::filesystem::create_directories("./test_data/wal1_half");
         std::filesystem::create_directories("./test_data/wal2");
+        std::filesystem::create_directories("./test_data/wal4");
 
         // Experiment with different wal file size thresholds.
         log_writer1 = new LogWriter("./test_data/wal1", sizeof(WALRecord));
@@ -39,6 +41,7 @@ class LogWriterTest : public testing::Test {
         log_writer1_half = new LogWriter("./test_data/wal1_half",
                                          static_cast<uintmax_t>(sizeof(WALRecord) * 1.5));
         log_writer2 = new LogWriter("./test_data/wal2", sizeof(WALRecord) * 2);
+        log_writer4 = new LogWriter("./test_data/wal4", sizeof(WALRecord) * 4);
         log_writer_32mb = new LogWriter("./test_data/wal_32mb", 32 * 1024 * 1024);
     }
 
@@ -49,6 +52,7 @@ class LogWriterTest : public testing::Test {
         delete log_writer_half;
         delete log_writer1_half;
         delete log_writer2;
+        delete log_writer4;
         delete log_writer_32mb;
 
         // Drop test directory.
@@ -57,6 +61,7 @@ class LogWriterTest : public testing::Test {
         std::filesystem::remove_all("./test_data/wal_half");
         std::filesystem::remove_all("./test_data/wal1_half");
         std::filesystem::remove_all("./test_data/wal2");
+        std::filesystem::remove_all("./test_data/wal4");
         std::filesystem::remove_all("./test_data/wal_32mb");
     }
 
@@ -86,7 +91,6 @@ class LogWriterTest : public testing::Test {
             log_writer->write_record(key, value, type);
         }
     }
-
 
 
 // 1. Test constructors
@@ -281,7 +285,7 @@ TEST_F(LogWriterTest, RoundTripChecksumMatches) {
 
 // 4. File corruption, partial writes.
 
-// Corrupt file.
+// Corrupt file keys.
 TEST_F(LogWriterTest, FileCorruptionKeys) {
 
         // Write one record.
@@ -314,8 +318,6 @@ TEST_F(LogWriterTest, FileCorruptionKeys) {
         // Recalculate Checksum.
         uint32_t recalculated_checksum = LogWriter::calculate_crc32(wal_record);
 
-        string("AA\0rname", 8);
-
         EXPECT_NE(recalculated_checksum, original_checksum);
 
         // New record is corrupted username.
@@ -324,3 +326,127 @@ TEST_F(LogWriterTest, FileCorruptionKeys) {
         EXPECT_EQ(corrupted_string, wal_record_key);
     }
 
+// Corrupt record type.
+TEST_F(LogWriterTest, FileCorruptionType) {
+        // Write one record.
+        log_writer_32mb->write_record("username", "daniel", ValueType::VALUE);
+
+        // Open file.
+        fstream file(log_writer_32mb->get_write_path(), ios::binary | ios::in | ios::out);
+
+        // Get original checksum.
+        WALRecord wal_record;
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+        uint32_t original_checksum = wal_record.checksum;
+
+        // Jump to the start of the type field.
+        file.seekp(offsetof(WALRecord, type));
+
+        // Write a corrupt record.
+        uint8_t corrupt_wal_record_type = static_cast<uint8_t>(ValueType::TOMBSTONE);
+        file.write(reinterpret_cast<char*>(&corrupt_wal_record_type), sizeof(corrupt_wal_record_type));
+
+        // Return to beginning of file and calculate checksum again.
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+        uint32_t corrupt_checksum = LogWriter::calculate_crc32(wal_record);
+
+        // Numbers must differ.
+        EXPECT_NE(original_checksum, corrupt_checksum);
+
+        // Jump to the start of the type field.
+        file.seekp(offsetof(WALRecord, type));
+
+        // Fix the file to its original state.
+        uint8_t fix_wal_record_type = static_cast<uint8_t>(ValueType::VALUE);
+        file.write(reinterpret_cast<char*>(&fix_wal_record_type), sizeof(fix_wal_record_type));
+
+        // Return to beginning of file and calculate checksum again.
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+        file.close();
+        uint32_t fixed_checksum = LogWriter::calculate_crc32(wal_record);
+
+        // Numbers must match.
+        EXPECT_EQ(original_checksum, fixed_checksum);
+
+    }
+
+// Partial Write, second record gets truncated.
+TEST_F(LogWriterTest, TruncatedRecordDetected){
+        // Write two records.
+        log_writer_32mb->write_record("username1", "daniel", ValueType::VALUE);
+        log_writer_32mb->write_record("username2", "paul", ValueType::VALUE);
+
+        string wal_path = log_writer_32mb->get_write_path();
+        // Shrink file to cut second record in half.
+        uintmax_t full_size = std::filesystem::file_size(wal_path);
+        uintmax_t truncated_size = full_size - (sizeof(WALRecord) / 2);
+
+        std::filesystem::resize_file(wal_path, truncated_size);
+
+        // Try to read both records.
+        std::ifstream file(wal_path, std::ios::binary);
+        WALRecord wal_record;
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+
+        // First record has same size of WALRecord, key-value pairs match.
+        EXPECT_EQ(file.gcount(), sizeof(WALRecord));
+        EXPECT_EQ(string(wal_record.key), "username1");
+        EXPECT_EQ(string(wal_record.value), "daniel");
+
+        // Second record is smaller than wall record.
+        file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
+        EXPECT_NE(file.gcount(), sizeof(WALRecord));
+    }
+
+// 5. Test reading all records back across segments matches what was written.
+TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites)
+    {
+        // Write 15 records, 4 total segments on a LogWriter that allows 4 records per file.
+        write_sample_records(15, log_writer4);
+
+        // Iterate through each segment and verify records match.
+        int max_segment = log_writer4->get_latest_segment_num();
+        int expected_num = 1;
+        for (int i = 1; i <= max_segment; i++) {
+
+            // Open current path.
+            string path = "./test_data/wal4/" + format("{:06d}.log", i);
+            ifstream file(path, ios::binary);
+
+            // Read each record of the segment until it reaches the end.
+            WALRecord wal_record;
+            while (file.read(reinterpret_cast<char*>(&wal_record), sizeof(WALRecord))) {
+                // End of segment.
+                if (file.gcount() != sizeof(WALRecord)) {
+                    file.close();
+                    break;
+                }
+
+                // Calculate expected key, value and type.
+                string expected_key = "key" + std::to_string(expected_num);
+                string expected_value = "value" + std::to_string(expected_num);
+                ValueType expected_type;
+
+                // Odd numbers get VALUE, even numbers get TOMBSTONE.
+                if (expected_num % 2 == 0) {
+                    expected_type = ValueType::TOMBSTONE;
+                } else {
+                    expected_type = ValueType::VALUE;
+                }
+
+                // Attributes must match.
+                EXPECT_EQ(wal_record.sequence_number, expected_num);
+                EXPECT_EQ(string(wal_record.key), expected_key);
+                EXPECT_EQ(string(wal_record.value), expected_value);
+                EXPECT_EQ(static_cast<ValueType>(wal_record.type), expected_type);
+
+                // Verify checksum integrity.
+                EXPECT_EQ(wal_record.checksum, LogWriter::calculate_crc32(wal_record));
+
+                expected_num++;
+
+            }
+        }
+    }
