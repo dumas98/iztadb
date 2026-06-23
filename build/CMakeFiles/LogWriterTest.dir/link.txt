@@ -1,1 +1,0 @@
-/usr/bin/c++  -arch x86_64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/LogWriterTest.dir/tests/log_writer_test.cpp.o CMakeFiles/LogWriterTest.dir/src/log_writer.cpp.o -o LogWriterTest  lib/libgtest_main.a /opt/homebrew/opt/zlib/lib/libz.dylib lib/libgtest.a

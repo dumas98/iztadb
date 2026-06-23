@@ -1,5 +1,0 @@
-if(EXISTS "/Users/danieldumas/code/iztadb/build/LogWriterTest[1]_tests.cmake")
-  include("/Users/danieldumas/code/iztadb/build/LogWriterTest[1]_tests.cmake")
-else()
-  add_test(LogWriterTest_NOT_BUILT LogWriterTest_NOT_BUILT)
-endif()
