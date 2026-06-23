@@ -1,0 +1,1 @@
+/usr/bin/c++  -arch x86_64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/MemTableTest.dir/tests/memtable_test.cpp.o CMakeFiles/MemTableTest.dir/src/memtable.cpp.o -o MemTableTest  lib/libgtest_main.a lib/libgtest.a

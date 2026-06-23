@@ -3,40 +3,18 @@
 //
 
 #include "log_writer.h"
+#include "log_utils.h"
 #include <iostream>
 using namespace std;
 
 LogWriter::LogWriter(const std::string& wal_path, uintmax_t max_wal_file_size) {
     this->wal_path = wal_path;
     this->max_wal_file_size = max_wal_file_size;
-    latest_segment_num = calculate_latest_segment();
+    latest_segment_num = iztadb::wal::calculate_latest_segment(wal_path);
     write_path = resolve_active_log_path();
     next_sequence = calculate_next_sequence();
 }
 
-int LogWriter::calculate_latest_segment() {
-    int latest_segment_num = 0;
-
-    // No files exist, use zero.
-    if (filesystem::is_empty(wal_path)) {
-        return latest_segment_num;
-    }
-
-    // Iterate through each directory to get max (corresponds to latest file).
-    for (auto const& dir_entry : filesystem::directory_iterator(wal_path)) {
-        // Filter out non .log files.
-        if (dir_entry.path().extension() != ".log") continue;
-
-        // Get only file name without extension with stem() and convert to integer.
-        int num = std::stoi(dir_entry.path().stem());
-
-        if (num > latest_segment_num) {
-            latest_segment_num = num;
-        }
-    }
-
-    return latest_segment_num;
-}
 
 string LogWriter::resolve_active_log_path() {
     // No files exist, start fresh.
@@ -85,13 +63,6 @@ uint32_t LogWriter::calculate_next_sequence() {
     return sequence_number + 1;
 }
 
-uint32_t LogWriter::calculate_crc32(WALRecord record) {
-    // Set to zero so contents match when reading.
-    record.checksum = 0;
-
-    // Start from 0, insert the address of record copy and scan the size of WALRecord.
-    return crc32(0, reinterpret_cast<const Bytef*>(&record), sizeof(WALRecord));
-};
 
 void LogWriter::write_record(const std::string& key, const std::string& value, ValueType type) {
     // Assign data for individual record.
@@ -106,7 +77,7 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     strncpy(record.value, value.c_str(), sizeof(record.value));
 
     // Assign checksum value after record has all data.
-    record.checksum =  calculate_crc32(record);
+    record.checksum =  iztadb::wal::calculate_crc32(record);
 
     // Open file, binary mode, output operations happen at the end.
     ofstream file(write_path, ios::binary | ios::app);
@@ -119,7 +90,7 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     next_sequence ++;
 
     // Recalculate latest segment.
-    latest_segment_num = calculate_latest_segment();
+    latest_segment_num = iztadb::wal::calculate_latest_segment(wal_path);
 
     // After record is written recalculate write path.
     write_path = resolve_active_log_path();

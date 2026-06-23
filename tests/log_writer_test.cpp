@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include "log_writer.h"
+#include "log_utils.h"
 #include "types.h"
 
 using namespace std;
@@ -278,7 +279,7 @@ TEST_F(LogWriterTest, RoundTripChecksumMatches) {
     file.close();
 
     // Recalculate checksum.
-    uint32_t recalculated_checksum = LogWriter::calculate_crc32(wal_record);
+    uint32_t recalculated_checksum = iztadb::wal::calculate_crc32(wal_record);
 
     EXPECT_EQ(recalculated_checksum, original_checksum);
 }
@@ -316,7 +317,7 @@ TEST_F(LogWriterTest, FileCorruptionKeys) {
         file.close();
 
         // Recalculate Checksum.
-        uint32_t recalculated_checksum = LogWriter::calculate_crc32(wal_record);
+        uint32_t recalculated_checksum = iztadb::wal::calculate_crc32(wal_record);
 
         EXPECT_NE(recalculated_checksum, original_checksum);
 
@@ -349,7 +350,7 @@ TEST_F(LogWriterTest, FileCorruptionType) {
         // Return to beginning of file and calculate checksum again.
         file.seekg(0);
         file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
-        uint32_t corrupt_checksum = LogWriter::calculate_crc32(wal_record);
+        uint32_t corrupt_checksum = iztadb::wal::calculate_crc32(wal_record);
 
         // Numbers must differ.
         EXPECT_NE(original_checksum, corrupt_checksum);
@@ -365,7 +366,7 @@ TEST_F(LogWriterTest, FileCorruptionType) {
         file.seekg(0);
         file.read(reinterpret_cast<char*>(&wal_record),sizeof(WALRecord));
         file.close();
-        uint32_t fixed_checksum = LogWriter::calculate_crc32(wal_record);
+        uint32_t fixed_checksum = iztadb::wal::calculate_crc32(wal_record);
 
         // Numbers must match.
         EXPECT_EQ(original_checksum, fixed_checksum);
@@ -443,7 +444,7 @@ TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites)
                 EXPECT_EQ(static_cast<ValueType>(wal_record.type), expected_type);
 
                 // Verify checksum integrity.
-                EXPECT_EQ(wal_record.checksum, LogWriter::calculate_crc32(wal_record));
+                EXPECT_EQ(wal_record.checksum, iztadb::wal::calculate_crc32(wal_record));
 
                 expected_num++;
 

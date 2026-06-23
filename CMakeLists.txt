@@ -28,6 +28,8 @@ target_sources(MainExecutable
         src/iztadb.cpp
         src/memtable.cpp
         src/log_writer.cpp
+        src/log_utils.cpp
+        src/log_reader.cpp
 )
 
 target_include_directories(MainExecutable PRIVATE src)
@@ -58,6 +60,7 @@ target_sources(LogWriterTest
         PRIVATE
         tests/log_writer_test.cpp
         src/log_writer.cpp
+        src/log_utils.cpp
 )
 target_include_directories(LogWriterTest PRIVATE src)
 target_link_libraries(LogWriterTest GTest::gtest_main ZLIB::ZLIB)

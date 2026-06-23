@@ -1,0 +1,5 @@
+if(EXISTS "/Users/danieldumas/code/iztadb/build/MemTableTest[1]_tests.cmake")
+  include("/Users/danieldumas/code/iztadb/build/MemTableTest[1]_tests.cmake")
+else()
+  add_test(MemTableTest_NOT_BUILT MemTableTest_NOT_BUILT)
+endif()

@@ -2,34 +2,12 @@
 // Created by Daniel Dumas on 05/06/26.
 //
 
-
+#pragma once
 #include <string>
-#include <filesystem>
 #include <fstream>
 #include <zlib.h>
 #include "types.h"
 
-/**
- * @brief Represents a single record in the Write-Ahead Log.
- *
- * Fixed size layout of 393 bytes per record. Padding is disabled
- * via pragma pack to ensure exact byte layout on disk.
- * Sequence_number is an increasing sequence to identify record,
- * CRC32 checksum is used to detect corruption on recovery, type
- * indicates it's value of ValueType.
- *
- * Keys will only support strings with a maximum of 128 chars
- * and values with a maximum of 256 chars.
- */
-#pragma pack(1)
-struct WALRecord {
-    uint32_t sequence_number;  // 4 bytes
-    uint32_t checksum;         // 4 bytes
-    uint8_t type;              // 1 byte
-    char key[128];             // 128 bytes
-    char value[256];           // 256 bytes
-};
-#pragma pack()
 
 /**
  * @brief Manages write operations to the Write-Ahead Log (WAL).
@@ -68,14 +46,6 @@ class LogWriter {
                         uintmax_t max_wal_file_size = 32 * 1024 * 1024  // 32MB
                         );
 
-
-        /**
-         * @brief Returns the highest numbered log segment in the WAL directory.
-         *
-         * @return Max segment number, 0 if directory is empty.
-         */
-        int calculate_latest_segment();
-
         /**
          * @brief Resolves the path of the active log file.
          * Uses get_max_segment to calculate the maximum segment.
@@ -100,19 +70,6 @@ class LogWriter {
          * @throws std::runtime_error if the latest WAL segment cannot be opened.
          */
         uint32_t calculate_next_sequence();
-
-        /**
-         * @brief Calculates CRC32 checksum for a WAL record.
-         *
-         * Sets to zero the checksum field before calculating to ensure
-         * the checksum is not included in its own calculation.
-         * Used to verify record integrity on recovery.
-         *
-         * @param record WALRecord to calculate checksum, passed by value
-         * so the original is not modified.
-         * @return CRC32 checksum of the record.
-         */
-        static uint32_t calculate_crc32(WALRecord record);
 
         /**
          * @brief Writes a single record to the active WAL segment.

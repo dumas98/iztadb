@@ -1,0 +1,86 @@
+[
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/MainExecutable.dir/src/main.cpp.o -c /Users/danieldumas/code/iztadb/src/main.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/main.cpp",
+  "output": "CMakeFiles/MainExecutable.dir/src/main.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/MainExecutable.dir/src/iztadb.cpp.o -c /Users/danieldumas/code/iztadb/src/iztadb.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/iztadb.cpp",
+  "output": "CMakeFiles/MainExecutable.dir/src/iztadb.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/MainExecutable.dir/src/memtable.cpp.o -c /Users/danieldumas/code/iztadb/src/memtable.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/memtable.cpp",
+  "output": "CMakeFiles/MainExecutable.dir/src/memtable.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/MainExecutable.dir/src/log_writer.cpp.o -c /Users/danieldumas/code/iztadb/src/log_writer.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/log_writer.cpp",
+  "output": "CMakeFiles/MainExecutable.dir/src/log_writer.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/MainExecutable.dir/src/log_reader.cpp.o -c /Users/danieldumas/code/iztadb/src/log_reader.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/log_reader.cpp",
+  "output": "CMakeFiles/MainExecutable.dir/src/log_reader.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/MainExecutable.dir/src/log_utils.cpp.o -c /Users/danieldumas/code/iztadb/src/log_utils.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/log_utils.cpp",
+  "output": "CMakeFiles/MainExecutable.dir/src/log_utils.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -std=gnu++20 -arch x86_64 -o CMakeFiles/MemTableTest.dir/tests/memtable_test.cpp.o -c /Users/danieldumas/code/iztadb/tests/memtable_test.cpp",
+  "file": "/Users/danieldumas/code/iztadb/tests/memtable_test.cpp",
+  "output": "CMakeFiles/MemTableTest.dir/tests/memtable_test.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -std=gnu++20 -arch x86_64 -o CMakeFiles/MemTableTest.dir/src/memtable.cpp.o -c /Users/danieldumas/code/iztadb/src/memtable.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/memtable.cpp",
+  "output": "CMakeFiles/MemTableTest.dir/src/memtable.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/LogWriterTest.dir/tests/log_writer_test.cpp.o -c /Users/danieldumas/code/iztadb/tests/log_writer_test.cpp",
+  "file": "/Users/danieldumas/code/iztadb/tests/log_writer_test.cpp",
+  "output": "CMakeFiles/LogWriterTest.dir/tests/log_writer_test.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/src -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -isystem /opt/homebrew/opt/zlib/include -std=gnu++20 -arch x86_64 -o CMakeFiles/LogWriterTest.dir/src/log_writer.cpp.o -c /Users/danieldumas/code/iztadb/src/log_writer.cpp",
+  "file": "/Users/danieldumas/code/iztadb/src/log_writer.cpp",
+  "output": "CMakeFiles/LogWriterTest.dir/src/log_writer.cpp.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock/include -I/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -std=c++20 -arch x86_64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gmock.dir/src/gmock-all.cc.o -c /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "file": "/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -std=c++20 -arch x86_64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -c /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "file": "/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -I/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -I/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -std=c++20 -arch x86_64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gtest.dir/src/gtest-all.cc.o -c /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "file": "/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o"
+},
+{
+  "directory": "/Users/danieldumas/code/iztadb/build/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/include -isystem /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest -std=c++20 -arch x86_64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -c /Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "file": "/Users/danieldumas/code/iztadb/build/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o"
+}
+]
