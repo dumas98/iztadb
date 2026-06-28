@@ -65,4 +65,16 @@ public:
      */
     void restore_mem_table(MemTable& mem_table);
 
+    /**
+     * @brief Returns the WAL directory path.
+     * @return Path to the WAL directory.
+     */
+    std::string get_wal_path();
+
+    /**
+     * @brief Returns the highest numbered log segment.
+     * @return Max segment number, 0 if no segments exist.
+     */
+    int get_latest_segment_num();
+
 };

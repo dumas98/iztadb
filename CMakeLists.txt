@@ -51,7 +51,6 @@ target_sources(MemTableTest
 
 target_include_directories(MemTableTest PRIVATE src)
 target_link_libraries(MemTableTest GTest::gtest_main)
-
 gtest_discover_tests(MemTableTest)
 
 # LogWriter.
@@ -65,3 +64,17 @@ target_sources(LogWriterTest
 target_include_directories(LogWriterTest PRIVATE src)
 target_link_libraries(LogWriterTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(LogWriterTest)
+
+# LogReader.
+add_executable(LogReaderTest)
+target_sources(LogReaderTest
+        PRIVATE
+        tests/log_reader_test.cpp
+        src/log_reader.cpp
+        src/log_writer.cpp
+        src/log_utils.cpp
+        src/memtable.cpp
+)
+target_include_directories(LogReaderTest PRIVATE src)
+target_link_libraries(LogReaderTest GTest::gtest_main ZLIB::ZLIB)
+gtest_discover_tests(LogReaderTest)

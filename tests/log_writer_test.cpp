@@ -57,13 +57,7 @@ class LogWriterTest : public testing::Test {
         delete log_writer_32mb;
 
         // Drop test directory.
-        std::filesystem::remove_all("./test_data/wal");
-        std::filesystem::remove_all("./test_data/wal1");
-        std::filesystem::remove_all("./test_data/wal_half");
-        std::filesystem::remove_all("./test_data/wal1_half");
-        std::filesystem::remove_all("./test_data/wal2");
-        std::filesystem::remove_all("./test_data/wal4");
-        std::filesystem::remove_all("./test_data/wal_32mb");
+        std::filesystem::remove_all("./test_data/");
     }
 
     // Count log files in a directory.
