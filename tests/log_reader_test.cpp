@@ -264,16 +264,7 @@ TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegmentsFourRecordsEach
         log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
 
-    // Delete Records.
-    for (int i = 1; i <= 999; i++) {
-        std::string key = "key" + std::to_string(i);
-        std::string value = "value" + std::to_string(i);
-        // Write, delete and write again.
-        log_writer4->write_record(key, value, type_value);
-        log_writer4->write_record(key, value, type_tombstone);
-    }
-
-    // Write records back to LogWriter.
+    // Repeat for double PUT.
     for (int i = 1; i <= 999; i++) {
         log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
@@ -287,41 +278,105 @@ TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegmentsFourRecordsEach
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
 
+    // Delete Records.
+    for (int i = 1; i <= 999; i++) {
+        std::string key = "key" + std::to_string(i);
+        std::string value = "value" + std::to_string(i);
+        // Write, delete and write again.
+        log_writer4->write_record(key, value, type_tombstone);
+    }
+
+    // Re-instantiate MemTable.
+    delete mem_table;
+    mem_table = new MemTable();
+    LogReader log_reader2(wal_path4);
+    log_reader2.restore_mem_table(*mem_table);
+
+    // Check recreated MemTable, no records appear.
+    for (int i = 1; i <= 999; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+    }
+
+    // Write records back to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Re-instantiate MemTable.
+    delete mem_table;
+    mem_table = new MemTable();
+    LogReader log_reader3(wal_path4);
+    log_reader3.restore_mem_table(*mem_table);
+    log_reader3.restore_mem_table(*mem_table);
+
+    // Check correct Rotation.
+    EXPECT_EQ(log_reader3.get_latest_segment_num(), 999);
+
+    // Check recreated MemTable.
+    for (int i = 1; i <= 999; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
 }
 
 // Segment of 32MB.
 TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegments32MB) {
 
     // Write records to LogWriter.
-    for (int i = 1; i <= 30000; i++) {
+    for (int i = 1; i <= 25000; i++) {
         log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
 
-    // Delete Records.
-    for (int i = 1; i <= 30000; i++) {
-        std::string key = "key" + std::to_string(i);
-        std::string value = "value" + std::to_string(i);
-        // Write, delete and write again.
-        log_writer->write_record(key, value, type_value);
-        log_writer->write_record(key, value, type_tombstone);
-    }
-
-    // Write records back to LogWriter.
-    for (int i = 1; i <= 30000; i++) {
+    // Repeat for double PUT.
+    for (int i = 1; i <= 25000; i++) {
         log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
 
     // Instantiate LogReader.
     LogReader log_reader(wal_path);
-
-    // Check correct Rotation.
-    EXPECT_EQ(log_reader.get_latest_segment_num(), 2);
-
-    // Restore MemTable.
     log_reader.restore_mem_table(*mem_table);
 
     // Check recreated MemTable.
-    for (int i = 1; i <= 30000; i++) {
+    for (int i = 1; i <= 25000; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
+    // Delete Records.
+    for (int i = 1; i <= 25000; i++) {
+        std::string key = "key" + std::to_string(i);
+        std::string value = "value" + std::to_string(i);
+        // Write, delete and write again.
+        log_writer->write_record(key, value, type_tombstone);
+    }
+
+    // Re-instantiate MemTable.
+    delete mem_table;
+    mem_table = new MemTable();
+    LogReader log_reader2(wal_path);
+    log_reader2.restore_mem_table(*mem_table);
+
+    // Check recreated MemTable, no records appear.
+    for (int i = 1; i <= 25000; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+    }
+
+    // Write records back to LogWriter.
+    for (int i = 1; i <= 25000; i++) {
+        log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Re-instantiate MemTable.
+    delete mem_table;
+    mem_table = new MemTable();
+    LogReader log_reader3(wal_path);
+    log_reader3.restore_mem_table(*mem_table);
+    log_reader3.restore_mem_table(*mem_table);
+
+    // Check correct Rotation.
+    EXPECT_EQ(log_reader3.get_latest_segment_num(), 2);
+
+    // Check recreated MemTable.
+    for (int i = 1; i <= 25000; i++) {
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
 
@@ -494,6 +549,90 @@ TEST_F(LogReaderTest, RestoresCorrputedValueTypeDataSegments32MB) {
         }
     }
 }
+
+// Partial writes inside a record, truncate the file.
+// Segment of 4 records.
+TEST_F(LogReaderTest, RestoresPartialWritesInsideRecordSegmentsFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate two files.
+
+    // Record 631 will be truncated: CEIL(631/4) = 000158.log, third record.
+    std::string partial_file_path = wal_path4 + "/000158.log";
+    uintmax_t full_size = std::filesystem::file_size(partial_file_path);
+    uintmax_t truncated_size = full_size - (sizeof(WALRecord) * 1.5);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+    // Record 731 will be truncated: CEIL(731/4) = 000183.log, third record.
+    std::string partial_file_path2 = wal_path4 + "/000183.log";
+    uintmax_t full_size2 = std::filesystem::file_size(partial_file_path2);
+    uintmax_t truncated_size2 = full_size2 - (sizeof(WALRecord) * 1.5);
+    std::filesystem::resize_file(partial_file_path2, truncated_size2);
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 630 (first truncated record),
+    // even though there are two truncated files.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 630) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+}
+
+// Partial write between records, truncate the file.
+// Segment of 4 records.
+TEST_F(LogReaderTest, RestoresPartialWritesBetweenRecordSegmentsFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate two files.
+
+    // Truncate exactly between Record 631 and Record 632.
+    // CEIL(631/4) = 000158.log, third record.
+    std::string partial_file_path = wal_path4 + "/000158.log";
+    uintmax_t full_size = std::filesystem::file_size(partial_file_path);
+    uintmax_t truncated_size = full_size - (sizeof(WALRecord));
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+    // Truncate exactly between Record 731 and Record 732.
+    // CEIL(731/4) = 000183.log, third record.
+    std::string partial_file_path2 = wal_path4 + "/000183.log";
+    uintmax_t full_size2 = std::filesystem::file_size(partial_file_path2);
+    uintmax_t truncated_size2 = full_size2 - (sizeof(WALRecord));
+    std::filesystem::resize_file(partial_file_path2, truncated_size2);
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 631 (record is intact but file is truncated)
+    // even though there are two truncated files.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 631) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+}
+
+
 
 
 
