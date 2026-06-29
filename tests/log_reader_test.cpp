@@ -21,6 +21,7 @@ protected:
 
     std::string wal_path = "./test_data/wal";
     std::string wal_path4 = "./test_data/wal4";
+    std::string wal_path1_half = "./test_data/wal1_half";
 
     ValueType type_value = ValueType::VALUE;
     ValueType type_tombstone = ValueType::TOMBSTONE;
@@ -28,6 +29,7 @@ protected:
     // Use pointer to allocate memory preventing the default constructor attribute assignment.
     LogWriter* log_writer;
     LogWriter* log_writer4;
+    LogWriter* log_writer1_half;
     MemTable* mem_table;
 
     // Before Each.
@@ -36,9 +38,12 @@ protected:
 
         std::filesystem::create_directories(wal_path);
         std::filesystem::create_directories(wal_path4);
+        std::filesystem::create_directories(wal_path1_half);
 
         // Instantiate LogWriter, LogReader and MemTable
         log_writer = new LogWriter(wal_path);
+        log_writer1_half = new LogWriter("./test_data/wal1_half",
+                                         static_cast<uintmax_t>(sizeof(WALRecord) * 1.5));
         log_writer4 = new LogWriter(wal_path4, sizeof(WALRecord) * 4);
         mem_table = new MemTable();
     }
@@ -49,10 +54,12 @@ protected:
         delete log_writer;
         delete log_writer4;
         delete mem_table;
+        delete log_writer1_half;
 
         // Drop test directory.
         std::filesystem::remove_all(wal_path);
         std::filesystem::remove_all(wal_path4);
+        std::filesystem::remove_all(wal_path1_half);
     }
 
     // Write sample records to WAL.
@@ -129,34 +136,67 @@ TEST_F(LogReaderTest, RestoresSinglePutDeletePutRecord) {
     EXPECT_EQ(mem_table->get("key1"), "daniel");
 }
 
-// Test multiple records
+// Test PUT multiple records and segment rotation.
 
 // Multiple puts.
-TEST_F(LogReaderTest, RestoresMultiplePutRecords) {
 
-    // Write records to LogWriter,
+// Segment of 4 WAL Records.
+TEST_F(LogReaderTest, RestoresMultipleSegmentsFourRecordsEach) {
+    // Multiple writes.
     for (int i = 1; i <= 999; i++) {
-        std::string key = "key" + std::to_string(i);
-        std::string value = "value" + std::to_string(i);
-
-        log_writer4->write_record(key, value, type_value);
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
 
-    // Instantiate LogReader, latest segment is 000249.log.
+    // Restore using memTable.
     LogReader log_reader(wal_path4);
     log_reader.restore_mem_table(*mem_table);
 
-    // Read values back from MemTable. Must restore them correctly.
     for (int i = 1; i <= 999; i++) {
-        std::string key = "key" + std::to_string(i);
-        std::string value = "value" + std::to_string(i);
-        EXPECT_EQ(mem_table->get(key), value);
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+}
+
+// Segment of 2 WAL Records, max size of 1 and a half.
+TEST_F(LogReaderTest, RestoresMultipleSegmentsOneAndHalfRecordsEach) {
+    // Multiple writes.
+    for (int i = 1; i <= 999; i++) {
+        log_writer1_half->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
 
+    // Restore using memTable.
+    LogReader log_reader(wal_path1_half);
+    log_reader.restore_mem_table(*mem_table);
+
+    for (int i = 1; i <= 999; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+}
+
+// Segment of 32 MB.
+TEST_F(LogReaderTest, RestoresMultipleSegments32MB) {
+    // Multiple writes, fill at least one segment.
+    for (int i = 1; i <= 86000; i++) {
+        log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    LogReader log_reader(wal_path);
+
+    // Check correct Rotation.
+    EXPECT_EQ(log_reader.get_latest_segment_num(), 2);
+
+    // Recreate MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Check recreated MemTable.
+    for (int i = 1; i <= 86000; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
 }
 
 // Multiple deletes.
-TEST_F(LogReaderTest, RestoresMultipleTombstoneRecords) {
+
+// Segment of 4 WAL Records.
+TEST_F(LogReaderTest, RestoresMultipleTombstoneRecordsSegmentsFourRecordsEach) {
 
     // Write records to LogWriter,
     for (int i = 1; i <= 999; i++) {
@@ -181,3 +221,280 @@ TEST_F(LogReaderTest, RestoresMultipleTombstoneRecords) {
     }
 
 }
+
+// Segment of 32MB.
+TEST_F(LogReaderTest, RestoresMultipleTombstoneRecordsSegments32MB) {
+
+    // Write records to LogWriter,
+    for (int i = 1; i <= 86000; i++) {
+        std::string key = "key" + std::to_string(i);
+        std::string value = "value" + std::to_string(i);
+        // Write and immediately delete.
+        log_writer->write_record(key, value, type_value);
+        log_writer->write_record(key, value, type_tombstone);
+    }
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path);
+
+    // Check correct Rotation.
+    EXPECT_EQ(log_reader.get_latest_segment_num(), 3);
+    log_reader.restore_mem_table(*mem_table);
+
+    log_reader.restore_mem_table(*mem_table);
+
+    // Read values back from MemTable.
+    for (int i = 1; i <= 86000; i++) {
+        std::string key = "key" + std::to_string(i);
+        std::string value = "value" + std::to_string(i);
+
+        // Must be empty because values were deleted after insertion.
+        EXPECT_EQ(mem_table->get(key), std::nullopt);
+    }
+
+}
+
+// Multiple put delete put, not consecutive.
+
+// Segment of 4 WAL Records.
+TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegmentsFourRecordsEach) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Delete Records.
+    for (int i = 1; i <= 999; i++) {
+        std::string key = "key" + std::to_string(i);
+        std::string value = "value" + std::to_string(i);
+        // Write, delete and write again.
+        log_writer4->write_record(key, value, type_value);
+        log_writer4->write_record(key, value, type_tombstone);
+    }
+
+    // Write records back to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+    log_reader.restore_mem_table(*mem_table);
+
+    // Check recreated MemTable.
+    for (int i = 1; i <= 999; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
+}
+
+// Segment of 32MB.
+TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegments32MB) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 30000; i++) {
+        log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Delete Records.
+    for (int i = 1; i <= 30000; i++) {
+        std::string key = "key" + std::to_string(i);
+        std::string value = "value" + std::to_string(i);
+        // Write, delete and write again.
+        log_writer->write_record(key, value, type_value);
+        log_writer->write_record(key, value, type_tombstone);
+    }
+
+    // Write records back to LogWriter.
+    for (int i = 1; i <= 30000; i++) {
+        log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path);
+
+    // Check correct Rotation.
+    EXPECT_EQ(log_reader.get_latest_segment_num(), 2);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Check recreated MemTable.
+    for (int i = 1; i <= 30000; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
+}
+
+// Corrupt the data.
+
+// Corrupt Value, segment of 4 records.
+TEST_F(LogReaderTest, RestoresCorrputedValueDataSegmentsFourRecordsEach) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file where value500 exists.
+    std::fstream file(wal_path4 + "/000125.log", std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 500 value address.
+    WALRecord wal_record;
+    file.seekp((sizeof(WALRecord)* 3) + offsetof(WALRecord, value));
+
+    // Insert in beginning of value DDD -> "DDD\0e500", remember char array decays to pointer of
+    // first element.
+    char corrupt[4] = "DDD";
+    file.write(corrupt,sizeof(corrupt));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Up to 499 records were uncorrupt, LogReader completely restores it.
+    // from 500 onwards no records exist in MemTable.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 499) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+}
+
+// Corrupt Value, segment of 32MB.
+TEST_F(LogReaderTest, RestoresCorrputedValueDataSegments32MB) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file.
+    std::fstream file(log_writer->get_write_path(), std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 500 value address.
+    WALRecord wal_record;
+    file.seekp((sizeof(WALRecord)* 499) + offsetof(WALRecord, value));
+
+    // Insert in beginning of value DDD -> "DDD\0e500", remember char array decays to pointer of
+    // first element.
+    char corrupt[4] = "DDD";
+    file.write(corrupt,sizeof(corrupt));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Up to 499 records were uncorrupt, LogReader completely restores it.
+    // from 500 onwards no records exist in MemTable.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 499) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+}
+
+// Corrupt ValueType, segment of 4 records.
+TEST_F(LogReaderTest, RestoresCorrputedValueTypeDataSegmentsFourRecordsEach) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file where value500 exists.
+    std::fstream file(wal_path4 + "/000125.log", std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 500 value address.
+    WALRecord wal_record;
+    file.seekp((sizeof(WALRecord)* 3) + offsetof(WALRecord, type));
+
+    // Write a corrupt record, change to TOMBSTONE.
+    uint8_t corrupt_wal_record_type = static_cast<uint8_t>(ValueType::TOMBSTONE);
+    file.write(reinterpret_cast<char*>(&corrupt_wal_record_type), sizeof(corrupt_wal_record_type));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Up to 499 records were uncorrupt, LogReader completely restores it.
+    // from 500 onwards no records exist in MemTable.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 499) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+}
+
+// Corrupt ValueType, segment of 32MB.
+TEST_F(LogReaderTest, RestoresCorrputedValueTypeDataSegments32MB) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file.
+    std::fstream file(log_writer->get_write_path(), std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 500 value address.
+    WALRecord wal_record;
+    file.seekp((sizeof(WALRecord)* 499) + offsetof(WALRecord, value));
+
+    // Write a corrupt record, change to TOMBSTONE.
+    uint8_t corrupt_wal_record_type = static_cast<uint8_t>(ValueType::TOMBSTONE);
+    file.write(reinterpret_cast<char*>(&corrupt_wal_record_type), sizeof(corrupt_wal_record_type));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Up to 499 records were uncorrupt, LogReader completely restores it.
+    // from 500 onwards no records exist in MemTable.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 499) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+}
+
+
+
+
