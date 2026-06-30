@@ -5,8 +5,24 @@
 #pragma once
 
 #include <string>
-
 #include "memtable.h"
+
+/**
+ * @brief Represents the outcome of a WAL segment recovery operation.
+ *
+ * Returned by restore_segment() indicating whether recovery completed
+ * cleanly or data was corrupted. Used by IztaDB to determine
+ * if WAL repair is needed before starting LogWriter.
+ *
+ * A clean recovery means the segment was read to EOF with all checksums valid.
+ * A dirty recovery means a corrupted or partial record was encountered.
+ */
+struct RecoveryResult {
+    bool clean;
+    bool reached_eof;
+    std::string segment;
+    size_t last_clean_offset;
+};
 
 /**
  * @brief Manages read operations to the Write-Ahead Log (WAL).
@@ -15,7 +31,9 @@
  * directory for the latest file (contains the highest number).
  *
  * IztaDB will send a MemTable to its restore function and the operations
- * stored in the WAL will be executed.
+ * stored in the WAL will be executed. If a corrputed or partial write
+ * record is found, the RecoveryResult attribute will change pointing at
+ * the dirty data location. Default is clean data.
  *
  */
 class LogReader
@@ -23,6 +41,7 @@ class LogReader
 private:
     std::string wal_path;
     int latest_segment_num;
+    RecoveryResult recovery_result;
 
     /**
      * @brief Reads and replays all valid WAL records from a single segment file
@@ -34,10 +53,9 @@ private:
      * @param path Absolute path to the segment file (e.g. /wal/000001.log).
      * @param mem_table The MemTable to restore records into.
      *
-     * @return true if the segment was read cleanly to EOF.
-     * @return false if a corrupted or partial record was found.
+     * @return RecoveryResult the outcome of a WAL segment recovery operation.
      */
-    bool restore_segment(const std::string& path, MemTable& mem_table);
+    RecoveryResult restore_segment(const std::string& path, MemTable& mem_table);
 
 public:
     /**
@@ -77,4 +95,11 @@ public:
      */
     int get_latest_segment_num();
 
+    /**
+     * @brief Returns the RecoveryResult
+     * @return RecoveryResult after executing restore_mem_table
+     */
+    RecoveryResult get_recovery_result();
+
 };
+

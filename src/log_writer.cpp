@@ -65,6 +65,9 @@ uint32_t LogWriter::calculate_next_sequence() {
 
 
 void LogWriter::write_record(const std::string& key, const std::string& value, ValueType type) {
+    // Make a copy of write path.
+    string write_path_temp = write_path;
+
     // Assign data for individual record.
     WALRecord record;
     record.sequence_number = next_sequence;
@@ -94,6 +97,18 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
 
     // After record is written recalculate write path.
     write_path = resolve_active_log_path();
+
+    // EOF was reached.
+    if (write_path != write_path_temp) {
+        // Write close record to previous file.
+        ofstream file(write_path_temp, ios::binary | ios::app);
+        WALRecord close_record = {};
+        close_record.type = static_cast<uint8_t>(ValueType::CLOSE);
+        close_record.checksum = iztadb::wal::calculate_crc32(close_record);
+
+        // Write to file.
+        file.write(reinterpret_cast<char*>(&close_record), sizeof(WALRecord));
+    }
 };
 
 string LogWriter::get_wal_path() {
@@ -115,4 +130,3 @@ uint32_t LogWriter::get_next_sequence() {
 int LogWriter::get_latest_segment_num() {
     return latest_segment_num;
 }
-

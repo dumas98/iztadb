@@ -396,14 +396,14 @@ TEST_F(LogWriterTest, TruncatedRecordDetected){
     }
 
 // 5. Test reading all records back across segments matches what was written.
-TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites)
-    {
+TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites) {
         // Write 15 records, 4 total segments on a LogWriter that allows 4 records per file.
         write_sample_records(15, log_writer4);
 
         // Iterate through each segment and verify records match.
         int max_segment = log_writer4->get_latest_segment_num();
         int expected_num = 1;
+
         for (int i = 1; i <= max_segment; i++) {
 
             // Open current path.
@@ -413,9 +413,9 @@ TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites)
             // Read each record of the segment until it reaches the end.
             WALRecord wal_record;
             while (file.read(reinterpret_cast<char*>(&wal_record), sizeof(WALRecord))) {
-                // End of segment.
-                if (file.gcount() != sizeof(WALRecord)) {
-                    file.close();
+
+                // CLOSE record marks clean end of segment, skip to next segment.
+                if (static_cast<ValueType>(wal_record.type) == ValueType::CLOSE) {
                     break;
                 }
 
@@ -441,7 +441,38 @@ TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites)
                 EXPECT_EQ(wal_record.checksum, iztadb::wal::calculate_crc32(wal_record));
 
                 expected_num++;
+            }
+        }
+    }
 
+// 6. Test that each rotated segment ends with a CLOSE record.
+TEST_F(LogWriterTest, EachRotatedSegmentEndsWithCloseRecord) {
+        // Write 15 records, 4 per segment. Segment 4 stays active.
+        write_sample_records(15, log_writer4);
+
+        int max_segment = log_writer4->get_latest_segment_num();
+
+        // Read each segment.
+        for (int i = 1; i <= max_segment; i++) {
+            string path = "./test_data/wal4/" + format("{:06d}.log", i);
+            ifstream file(path, ios::binary);
+
+            // Read through the entire segment to land on the last record.
+            WALRecord wal_record;
+            WALRecord last_record;
+
+            while (file.read(reinterpret_cast<char*>(&wal_record), sizeof(WALRecord))) {
+                last_record = wal_record;
+            }
+
+            if (i < max_segment) {
+                // Rotated segment, must end with CLOSE.
+                EXPECT_EQ(static_cast<ValueType>(last_record.type), ValueType::CLOSE)
+                    << "Segment " << i << " did not end with a CLOSE record.";
+            } else {
+                // Active segment, should not have a CLOSE record.
+                EXPECT_NE(static_cast<ValueType>(last_record.type), ValueType::CLOSE)
+                    << "Active segment " << i << " should not be closed yet.";
             }
         }
     }

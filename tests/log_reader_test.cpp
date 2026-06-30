@@ -560,16 +560,17 @@ TEST_F(LogReaderTest, RestoresPartialWritesInsideRecordSegmentsFourRecordsEach) 
 
     // Truncate two files.
 
-    // Record 631 will be truncated: CEIL(631/4) = 000158.log, third record.
+    // Record 631: CEIL(631/4) = 000158.log, 3rd record.
+    // Keep 2 full records (629, 630) + half of the 3rd (631) = partial write.
     std::string partial_file_path = wal_path4 + "/000158.log";
-    uintmax_t full_size = std::filesystem::file_size(partial_file_path);
-    uintmax_t truncated_size = full_size - (sizeof(WALRecord) * 1.5);
+    uintmax_t truncated_size = (sizeof(WALRecord) * 2) + (sizeof(WALRecord) / 2);
     std::filesystem::resize_file(partial_file_path, truncated_size);
 
-    // Record 731 will be truncated: CEIL(731/4) = 000183.log, third record.
+    // Record 731: CEIL(731/4) = 000183.log, 3rd record.
+    // This segment is unreachable once segment 158 fails,
+    // included to confirm the reader stops at the first corruption, not the last.
     std::string partial_file_path2 = wal_path4 + "/000183.log";
-    uintmax_t full_size2 = std::filesystem::file_size(partial_file_path2);
-    uintmax_t truncated_size2 = full_size2 - (sizeof(WALRecord) * 1.5);
+    uintmax_t truncated_size2 = (sizeof(WALRecord) * 2) + (sizeof(WALRecord) / 2);
     std::filesystem::resize_file(partial_file_path2, truncated_size2);
 
     // Instantiate LogReader.
@@ -602,16 +603,18 @@ TEST_F(LogReaderTest, RestoresPartialWritesBetweenRecordSegmentsFourRecordsEach)
 
     // Truncate exactly between Record 631 and Record 632.
     // CEIL(631/4) = 000158.log, third record.
+
+    // Record 631: CEIL(631/4) = 000158.log, 3rd record.
+    // Keep 3 full records (629, 630, 631)
     std::string partial_file_path = wal_path4 + "/000158.log";
-    uintmax_t full_size = std::filesystem::file_size(partial_file_path);
-    uintmax_t truncated_size = full_size - (sizeof(WALRecord));
+    uintmax_t truncated_size = (sizeof(WALRecord) * 3);
     std::filesystem::resize_file(partial_file_path, truncated_size);
 
     // Truncate exactly between Record 731 and Record 732.
     // CEIL(731/4) = 000183.log, third record.
+    // Keep 3 full records (729, 730, 731)
     std::string partial_file_path2 = wal_path4 + "/000183.log";
-    uintmax_t full_size2 = std::filesystem::file_size(partial_file_path2);
-    uintmax_t truncated_size2 = full_size2 - (sizeof(WALRecord));
+    uintmax_t truncated_size2 = (sizeof(WALRecord) * 3);
     std::filesystem::resize_file(partial_file_path2, truncated_size2);
 
     // Instantiate LogReader.
@@ -631,9 +634,3 @@ TEST_F(LogReaderTest, RestoresPartialWritesBetweenRecordSegmentsFourRecordsEach)
         }
     }
 }
-
-
-
-
-
-

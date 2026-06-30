@@ -9,10 +9,12 @@
  * @brief Represents the type of stored value.
  * VALUE indicates a live record
  * TOMBSTONE indicates a deletion marker
+ * CLOSE marks EOF
  */
 enum class ValueType {
     VALUE,
-    TOMBSTONE
+    TOMBSTONE,
+    CLOSE
 };
 
 /**
