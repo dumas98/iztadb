@@ -58,6 +58,7 @@ class LogWriterTest : public testing::Test {
 
         // Drop test directory.
         std::filesystem::remove_all("./test_data/");
+        std::cout << "Test Ended." << std::endl;
     }
 
     // Count log files in a directory.
@@ -446,6 +447,7 @@ TEST_F(LogWriterTest, ReadAllRecordsMatchesWrites) {
     }
 
 // 6. Test that each rotated segment ends with a CLOSE record.
+// Last segment has space to insert more records.
 TEST_F(LogWriterTest, EachRotatedSegmentEndsWithCloseRecord) {
         // Write 15 records, 4 per segment. Segment 4 stays active.
         write_sample_records(15, log_writer4);
@@ -474,5 +476,30 @@ TEST_F(LogWriterTest, EachRotatedSegmentEndsWithCloseRecord) {
                 EXPECT_NE(static_cast<ValueType>(last_record.type), ValueType::CLOSE)
                     << "Active segment " << i << " should not be closed yet.";
             }
+        }
+    }
+
+// Last segment is out of space, must contain a CLOSE Type.
+TEST_F(LogWriterTest, EachRotatedSegmentEndsWithCloseRecordWriteBoundary) {
+        // Write 16 records, 4 per segment. Segment 4 is full.
+        write_sample_records(16, log_writer4);
+
+        int max_segment = log_writer4->get_latest_segment_num();
+
+        // Read each segment.
+        for (int i = 1; i <= max_segment; i++) {
+            string path = "./test_data/wal4/" + format("{:06d}.log", i);
+            ifstream file(path, ios::binary);
+
+            // Read through the entire segment to land on the last record.
+            WALRecord wal_record;
+            WALRecord last_record;
+
+            while (file.read(reinterpret_cast<char*>(&wal_record), sizeof(WALRecord))) {
+                last_record = wal_record;
+            }
+
+            // All latest records contain a CLOSE value type.
+            EXPECT_EQ(static_cast<ValueType>(last_record.type), ValueType::CLOSE);
         }
     }

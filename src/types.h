@@ -12,9 +12,9 @@
  * CLOSE marks EOF
  */
 enum class ValueType {
-    VALUE,
-    TOMBSTONE,
-    CLOSE
+    VALUE     = 0,
+    TOMBSTONE = 1,
+    CLOSE     = 2
 };
 
 /**

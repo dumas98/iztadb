@@ -31,7 +31,7 @@ struct RecoveryResult {
  * directory for the latest file (contains the highest number).
  *
  * IztaDB will send a MemTable to its restore function and the operations
- * stored in the WAL will be executed. If a corrputed or partial write
+ * stored in the WAL will be executed. If a corrupted or partial write
  * record is found, the RecoveryResult attribute will change pointing at
  * the dirty data location. Default is clean data.
  *
@@ -102,4 +102,3 @@ public:
     RecoveryResult get_recovery_result();
 
 };
-

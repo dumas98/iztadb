@@ -7,6 +7,7 @@
 #include <fstream>
 #include <zlib.h>
 #include "types.h"
+#include <log_utils.h>
 
 
 /**
@@ -43,7 +44,7 @@ class LogWriter {
          */
         explicit LogWriter(
                         const std::string& wal_path = "./data/wal",
-                        uintmax_t max_wal_file_size = 32 * 1024 * 1024  // 32MB
+                        uintmax_t max_wal_file_size = iztadb::wal::MaxSegmentSize
                         );
 
         /**

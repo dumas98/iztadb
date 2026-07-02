@@ -27,4 +27,6 @@ namespace iztadb::wal {
      * @return CRC32 checksum of the record.
      */
     uint32_t calculate_crc32(WALRecord record);
+
+    constexpr uintmax_t MaxSegmentSize = 32 * 1024 * 1024;
 }

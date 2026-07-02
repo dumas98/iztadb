@@ -98,7 +98,7 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     // After record is written recalculate write path.
     write_path = resolve_active_log_path();
 
-    // EOF was reached.
+    // EOF was reached, add a CLOSE record type to EOF.
     if (write_path != write_path_temp) {
         // Write close record to previous file.
         ofstream file(write_path_temp, ios::binary | ios::app);

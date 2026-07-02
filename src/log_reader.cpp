@@ -34,6 +34,8 @@ RecoveryResult LogReader::restore_segment(const std::string& path, MemTable& mem
 
         // Reached EOF cleanly.
         if (static_cast<ValueType>(wal_record.type) == ValueType::CLOSE) {
+            // Advance after successful record.
+            offset += sizeof(WALRecord);
             return {true,  true, path, offset};
         }
 

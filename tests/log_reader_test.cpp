@@ -60,6 +60,8 @@ protected:
         std::filesystem::remove_all(wal_path);
         std::filesystem::remove_all(wal_path4);
         std::filesystem::remove_all(wal_path1_half);
+
+        std::cout << "Test Ended." << std::endl;
     }
 
     // Write sample records to WAL.
@@ -111,6 +113,12 @@ TEST_F(LogReaderTest, RestoresSinglePutRecord) {
     log_reader.restore_mem_table(*mem_table);
 
     EXPECT_EQ(mem_table->get("key1"), "daniel");
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)));
 }
 
 // Put and delete.
@@ -122,6 +130,12 @@ TEST_F(LogReaderTest, RestoresTombstoneRecord) {
     log_reader.restore_mem_table(*mem_table);
 
     EXPECT_EQ(mem_table->get("key1"), std::nullopt);
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*2));
 }
 
 // Put delete and put again.
@@ -134,6 +148,12 @@ TEST_F(LogReaderTest, RestoresSinglePutDeletePutRecord) {
     log_reader.restore_mem_table(*mem_table);
 
     EXPECT_EQ(mem_table->get("key1"), "daniel");
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*3));
 }
 
 // Test PUT multiple records and segment rotation.
@@ -154,12 +174,18 @@ TEST_F(LogReaderTest, RestoresMultipleSegmentsFourRecordsEach) {
     for (int i = 1; i <= 999; i++) {
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000250.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*3));
 }
 
-// Segment of 2 WAL Records, max size of 1 and a half.
-TEST_F(LogReaderTest, RestoresMultipleSegmentsOneAndHalfRecordsEach) {
+// Segment of 2 WAL Records, max size of 1 and a half, doesn't read EOF.
+TEST_F(LogReaderTest, RestoresMultipleSegmentsOneAndHalfRecordsEachNoEOF) {
     // Multiple writes.
-    for (int i = 1; i <= 999; i++) {
+    for (int i = 1; i <= 9; i++) {
         log_writer1_half->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
     }
 
@@ -167,9 +193,37 @@ TEST_F(LogReaderTest, RestoresMultipleSegmentsOneAndHalfRecordsEach) {
     LogReader log_reader(wal_path1_half);
     log_reader.restore_mem_table(*mem_table);
 
-    for (int i = 1; i <= 999; i++) {
+    for (int i = 1; i <= 9; i++) {
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path1_half + "/000005.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)));
+}
+
+// Multiple Segments One and a Half.
+TEST_F(LogReaderTest, RestoresMultipleSegmentsOneAndHalfRecordsEachEOFReached) {
+    // Multiple writes.
+    for (int i = 1; i <= 10; i++) {
+        log_writer1_half->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Restore using memTable.
+    LogReader log_reader(wal_path1_half);
+    log_reader.restore_mem_table(*mem_table);
+
+    for (int i = 1; i <= 10; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, true);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path1_half + "/000005.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, sizeof(WALRecord)*3);
 }
 
 // Segment of 32 MB.
@@ -191,6 +245,12 @@ TEST_F(LogReaderTest, RestoresMultipleSegments32MB) {
     for (int i = 1; i <= 86000; i++) {
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path + "/000002.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*619));
 }
 
 // Multiple deletes.
@@ -219,6 +279,12 @@ TEST_F(LogReaderTest, RestoresMultipleTombstoneRecordsSegmentsFourRecordsEach) {
         // Must be empty because values were deleted after insertion.
         EXPECT_EQ(mem_table->get(key), std::nullopt);
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000500.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*2));
 
 }
 
@@ -252,12 +318,18 @@ TEST_F(LogReaderTest, RestoresMultipleTombstoneRecordsSegments32MB) {
         EXPECT_EQ(mem_table->get(key), std::nullopt);
     }
 
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path + "/000003.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*1238));
+
 }
 
 // Multiple put delete put, not consecutive.
 
 // Segment of 4 WAL Records.
-TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegmentsFourRecordsEach) {
+TEST_F(LogReaderTest, RestoresMultiplePutsDeletePutRecordsSegmentsFourRecordsEach) {
 
     // Write records to LogWriter.
     for (int i = 1; i <= 999; i++) {
@@ -309,13 +381,16 @@ TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegmentsFourRecordsEach
     log_reader3.restore_mem_table(*mem_table);
     log_reader3.restore_mem_table(*mem_table);
 
-    // Check correct Rotation.
-    EXPECT_EQ(log_reader3.get_latest_segment_num(), 999);
-
     // Check recreated MemTable.
     for (int i = 1; i <= 999; i++) {
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader3.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader3.get_recovery_result().reached_eof, true);
+    EXPECT_EQ(log_reader3.get_recovery_result().segment, wal_path4 + "/000999.log");
+    EXPECT_EQ(log_reader3.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*5));
 
 }
 
@@ -380,6 +455,12 @@ TEST_F(LogReaderTest, RestoresMultiplePutDeletePutRecordsSegments32MB) {
         EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
     }
 
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader3.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader3.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader3.get_recovery_result().segment, wal_path + "/000002.log");
+    EXPECT_EQ(log_reader3.get_recovery_result().last_clean_offset, (sizeof(WALRecord)*14619));
+
 }
 
 // Corrupt the data.
@@ -424,6 +505,12 @@ TEST_F(LogReaderTest, RestoresCorrputedValueDataSegmentsFourRecordsEach) {
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000125.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 3));
+
 }
 
 // Corrupt Value, segment of 32MB.
@@ -466,6 +553,12 @@ TEST_F(LogReaderTest, RestoresCorrputedValueDataSegments32MB) {
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, log_writer->get_write_path());
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 499));
 }
 
 // Corrupt ValueType, segment of 4 records.
@@ -507,6 +600,12 @@ TEST_F(LogReaderTest, RestoresCorrputedValueTypeDataSegmentsFourRecordsEach) {
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000125.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 3));
 }
 
 // Corrupt ValueType, segment of 32MB.
@@ -548,6 +647,12 @@ TEST_F(LogReaderTest, RestoresCorrputedValueTypeDataSegments32MB) {
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, log_writer->get_write_path());
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 499));
 }
 
 // Partial writes inside a record, truncate the file.
@@ -634,3 +739,5 @@ TEST_F(LogReaderTest, RestoresPartialWritesBetweenRecordSegmentsFourRecordsEach)
         }
     }
 }
+
+// Test Recovery Result is Working Correctly
