@@ -108,6 +108,8 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
 
         // Write to file.
         file.write(reinterpret_cast<char*>(&close_record), sizeof(WALRecord));
+
+        file.close();
     }
 };
 

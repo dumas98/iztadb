@@ -6,7 +6,6 @@
 #include "log_writer.h"
 #include "log_reader.h"
 #include "memtable.h"
-#include "log_utils.h"
 #include "types.h"
 
 /**
@@ -522,7 +521,7 @@ TEST_F(LogReaderTest, RestoresCorrputedValueDataSegments32MB) {
     }
 
     // Open file.
-    std::fstream file(log_writer->get_write_path(), std::ios::binary | std::ios::in | std::ios::out);
+    std::fstream file(wal_path + "/000001.log", std::ios::binary | std::ios::in | std::ios::out);
 
     // Corrupt file.
 
@@ -557,7 +556,7 @@ TEST_F(LogReaderTest, RestoresCorrputedValueDataSegments32MB) {
     // Check correct recovery_result.
     EXPECT_EQ(log_reader.get_recovery_result().clean, false);
     EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
-    EXPECT_EQ(log_reader.get_recovery_result().segment, log_writer->get_write_path());
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path + "/000001.log");
     EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 499));
 }
 
@@ -655,9 +654,296 @@ TEST_F(LogReaderTest, RestoresCorrputedValueTypeDataSegments32MB) {
     EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 499));
 }
 
+// Corrupt Close record.
+// Corrupt CloseType, segment of 4 records, first Segment corrupted.
+TEST_F(LogReaderTest, RestoresCorrputedCloseTypeDataFirstSegmentFourRecordsEach) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 4; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file.
+    std::fstream file(wal_path4 + "/000001.log", std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 4 type address.
+    file.seekp((sizeof(WALRecord)* 4) + offsetof(WALRecord, type));
+
+    // Write a corrupt record, change to VALUE.
+    uint8_t corrupt_wal_record_type = static_cast<uint8_t>(ValueType::TOMBSTONE);
+    file.write(reinterpret_cast<char*>(&corrupt_wal_record_type), sizeof(corrupt_wal_record_type));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
+// Corrupt CloseType, segment of 4 records, between Segment corrupted.
+TEST_F(LogReaderTest, RestoresCorrputedCloseTypeDataBetweenSegmentsFourRecordsEach) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 11; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file.
+    std::fstream file(wal_path4 + "/000002.log", std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 4 value address.
+    file.seekp((sizeof(WALRecord)* 4) + offsetof(WALRecord, type));
+
+    // Write a corrupt record, change to VALUE.
+    uint8_t corrupt_wal_record_type = static_cast<uint8_t>(ValueType::TOMBSTONE);
+    file.write(reinterpret_cast<char*>(&corrupt_wal_record_type), sizeof(corrupt_wal_record_type));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000002.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
+// Corrupt CloseType, segment of 4 records, final segment.
+TEST_F(LogReaderTest, RestoresCorrputedCloseTypeDataFinalSegmentFourRecordsEach) {
+
+    // Write records to LogWriter.
+    for (int i = 1; i <= 12; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Open file.
+    std::fstream file(wal_path4 + "/000003.log", std::ios::binary | std::ios::in | std::ios::out);
+
+    // Corrupt file.
+
+    // Jump to record 4 value address.
+    WALRecord wal_record;
+    file.seekp((sizeof(WALRecord)* 4) + offsetof(WALRecord, type));
+
+    // Write a corrupt record, change to TOMBSTONE, (warning, corrupting with VALUE is not corruption because
+    // VALUE = 0).
+    uint8_t corrupt_wal_record_type = static_cast<uint8_t>(ValueType::TOMBSTONE);
+    file.write(reinterpret_cast<char*>(&corrupt_wal_record_type), sizeof(corrupt_wal_record_type));
+
+    file.close();
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000003.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
 // Partial writes inside a record, truncate the file.
-// Segment of 4 records.
-TEST_F(LogReaderTest, RestoresPartialWritesInsideRecordSegmentsFourRecordsEach) {
+// First Segment.
+// Segment of 4 records, partial write inside record.
+TEST_F(LogReaderTest, RestoresPartialWriteInsideRecordFSegmentFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 4; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate fourth record in half.
+    std::string partial_file_path = wal_path4 + "/000001.log";
+    uintmax_t truncated_size = (sizeof(WALRecord) * 3.5);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 3.
+    for (int i = 1; i <= 4; i++) {
+        if (i <= 3) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 3));
+}
+
+// Partial write between records, truncate the file.
+// Segment of 4 records, partial write between records.
+TEST_F(LogReaderTest, RestoresPartialWriteBetweenRecordFSegmentFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 4; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate third record.
+    std::string partial_file_path = wal_path4 + "/000001.log";
+    uintmax_t truncated_size = (sizeof(WALRecord) * 3);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 3.
+    for (int i = 1; i <= 4; i++) {
+        if (i <= 3) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+
+    // Check correct recovery_result.
+    // CAUTION: If record is truncated between the next record, (non-close) there's no way to know and
+    // will return its clean.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 3));
+}
+
+// Test Recovery Result is Working Correctly
+// Partial writes inside a record, truncate the file.
+// Segment of 4 records, partial write inside CLOSE record.
+TEST_F(LogReaderTest, PartialWriteCloseRBetweenRecordFSegmentFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 4; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate CLOSE record.
+    std::string partial_file_path = wal_path4 + "/000001.log";
+    uintmax_t truncated_size = (sizeof(WALRecord) * 4) + (sizeof(WALRecord) / 2);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 4
+    for (int i = 1; i <= 4; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
+// Partial write between records, truncate the file.
+// Segment of 4 records, partial write removes CLOSE Record.
+TEST_F(LogReaderTest, PartialWriteCloseRInsideRecordFSegmentFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 4; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate third record.
+    std::string partial_file_path = wal_path4 + "/000001.log";
+    uintmax_t truncated_size = (sizeof(WALRecord) * 4);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 630 (first truncated record),
+    // even though there are two truncated files.
+    for (int i = 1; i <= 4; i++) {
+        if (i <= 4) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
+// Truncate first segment completely.
+TEST_F(LogReaderTest, TruncateSegmentFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 4; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Complete segment.
+    std::string partial_file_path = wal_path4 + "/000001.log";
+    uintmax_t truncated_size = 0;
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // No record exist, file was truncated.
+    for (int i = 1; i <= 4; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+    }
+
+    // Check correct recovery_result.
+    // WARNING, returns clean even if data existed before. Works correctly.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, true);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000001.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, 0);
+}
+
+// Between Segments.
+// Segment of 4 records, partial write inside record.
+TEST_F(LogReaderTest, RestoresPartialWritesInsideRecordBetweenSegmentsFourRecordsEach) {
     // Write records to LogWriter.
     for (int i = 1; i <= 999; i++) {
         log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
@@ -694,10 +980,17 @@ TEST_F(LogReaderTest, RestoresPartialWritesInsideRecordSegmentsFourRecordsEach) 
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000158.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 2));
+
 }
 
 // Partial write between records, truncate the file.
-// Segment of 4 records.
+// Segment of 4 records, partial write between records.
 TEST_F(LogReaderTest, RestoresPartialWritesBetweenRecordSegmentsFourRecordsEach) {
     // Write records to LogWriter.
     for (int i = 1; i <= 999; i++) {
@@ -738,6 +1031,136 @@ TEST_F(LogReaderTest, RestoresPartialWritesBetweenRecordSegmentsFourRecordsEach)
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000158.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 3));
 }
 
 // Test Recovery Result is Working Correctly
+// Partial writes inside a record, truncate the file.
+// Segment of 4 records, partial write inside CLOSE record.
+TEST_F(LogReaderTest, PartialWriteCloseRBetweenRecordBetweenSegmentsFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate two files.
+
+    // Truncate partially segment 158 CLOSE record.
+    // Keep 4 full records (629, 630, 631, 632)
+    std::string partial_file_path = wal_path4 + "/000158.log";
+    uintmax_t truncated_size = (sizeof(WALRecord) * 4.5);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+    // Truncate partially segment 183 CLOSE record.
+    // Keep 4 full records (729, 730, 731, 732)
+    std::string partial_file_path2 = wal_path4 + "/000183.log";
+    uintmax_t truncated_size2 = (sizeof(WALRecord) * 4.5);
+    std::filesystem::resize_file(partial_file_path2, truncated_size2);
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 631 (record is intact but file is truncated)
+    // even though there are two truncated files.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 632) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000158.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
+// Partial write between records, truncate the file.
+// Segment of 4 records, partial write removes CLOSE Record.
+TEST_F(LogReaderTest, PartialWritesCloseRInsideRecordBetweenSegmentsFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 999; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate two files.
+
+    // Truncate completely segment 158 CLOSE record.
+    // Keep 4 full records (629, 630, 631, 632)
+    std::string partial_file_path = wal_path4 + "/000158.log";
+    uintmax_t truncated_size = (sizeof(WALRecord) * 4);
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+    // Truncate completely segment 183 CLOSE record.
+    // Keep 4 full records (729, 730, 731, 732)
+    std::string partial_file_path2 = wal_path4 + "/000183.log";
+    uintmax_t truncated_size2 = (sizeof(WALRecord) * 4);
+    std::filesystem::resize_file(partial_file_path2, truncated_size2);
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 631 (record is intact but file is truncated)
+    // even though there are two truncated files.
+    for (int i = 1; i <= 999; i++) {
+        if (i <= 632) {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+        }
+        else {
+            EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
+        }
+    }
+
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000158.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, (sizeof(WALRecord)* 4));
+}
+
+// Truncate between segment completely.
+TEST_F(LogReaderTest, TruncateBetSegmentFourRecordsEach) {
+    // Write records to LogWriter.
+    for (int i = 1; i <= 10; i++) {
+        log_writer4->write_record("key" + std::to_string(i), "value" + std::to_string(i), type_value);
+    }
+
+    // Truncate third record.
+    std::string partial_file_path = wal_path4 + "/000002.log";
+    uintmax_t truncated_size = 0;
+    std::filesystem::resize_file(partial_file_path, truncated_size);
+
+
+    // Instantiate LogReader.
+    LogReader log_reader(wal_path4);
+
+    // Restore MemTable.
+    log_reader.restore_mem_table(*mem_table);
+
+    // MemTable is restored up to record 4, because of truncated segment.
+    for (int i = 1; i <= 4; i++) {
+        EXPECT_EQ(mem_table->get("key" + std::to_string(i)), "value" + std::to_string(i));
+    }
+
+    // Check correct recovery_result.
+    EXPECT_EQ(log_reader.get_recovery_result().clean, false);
+    EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
+    EXPECT_EQ(log_reader.get_recovery_result().segment, wal_path4 + "/000002.log");
+    EXPECT_EQ(log_reader.get_recovery_result().last_clean_offset, 0);
+}

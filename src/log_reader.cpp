@@ -58,7 +58,7 @@ RecoveryResult LogReader::restore_segment(const std::string& path, MemTable& mem
         return {false,  false, path, offset};
     }
 
-    // No EOF but potentially
+    // No EOF but potentially, needs more proof.
     return {true,  false, path, offset};
 
 }
@@ -72,7 +72,7 @@ void LogReader::restore_mem_table(MemTable& mem_table) {
         // Restore segment.
         RecoveryResult restored = restore_segment(segment, mem_table);
 
-        // Check if non-latest segment data reached EOF.
+        // Check if non-latest segment data reached EOF, if so clear clean.
         if ((i < latest_segment_num) && (!restored.reached_eof)) {
             restored.clean = false;
         }

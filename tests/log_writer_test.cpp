@@ -503,3 +503,25 @@ TEST_F(LogWriterTest, EachRotatedSegmentEndsWithCloseRecordWriteBoundary) {
             EXPECT_EQ(static_cast<ValueType>(last_record.type), ValueType::CLOSE);
         }
     }
+
+// Last segment is out of space, must contain a CLOSE Type.
+TEST_F(LogWriterTest, EachRotatedSegmentEndsWithCloseRecordWriteBoundaryFirst) {
+        // Write 16 records, 4 per segment. Segment 4 is full.
+        write_sample_records(4, log_writer4);
+
+        string path = "./test_data/wal4/000001.log";
+        ifstream file(path, ios::binary);
+
+        // Read through the entire segment to land on the last record.
+        WALRecord wal_record;
+        WALRecord last_record;
+
+        while (file.read(reinterpret_cast<char*>(&wal_record), sizeof(WALRecord))) {
+            last_record = wal_record;
+        }
+
+        // All latest records contain a CLOSE value type.
+        EXPECT_EQ(static_cast<ValueType>(last_record.type), ValueType::CLOSE);
+
+
+        }
