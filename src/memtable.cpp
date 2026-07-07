@@ -30,3 +30,7 @@ void MemTable::remove(const string& key) {
         table[key] = { ValueType::TOMBSTONE, "" };
     }
 }
+
+const std::map<std::string, Entry>& MemTable::get_map() const {
+    return table;
+}

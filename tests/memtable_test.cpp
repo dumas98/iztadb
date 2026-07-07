@@ -95,5 +95,37 @@ TEST_F(MemTableTest, EmptyStrings) {
     EXPECT_EQ(mem_table.get(""), nullopt);
 }
 
+// Verifies Map
+TEST_F(MemTableTest, ReturnsTable) {
+    // Add multiple values.
+    mem_table.put("Key1", "Value1");
+    mem_table.put("Key1", "Value1");
+    mem_table.put("Key2", "Value2");
+    mem_table.remove("Key2");
+    mem_table.put("Key2", "Value2");
+    mem_table.put("Key4", "Value4");
+    mem_table.remove("Key1");
+    mem_table.remove("Key3");
+
+    const std::map<std::string, Entry> map = mem_table.get_map();
+
+    // Key1, overwritten so it's a TOMBSTONE.
+    EXPECT_TRUE(map.contains("Key1"));
+    EXPECT_EQ(map.at("Key1").type, ValueType::TOMBSTONE);
+    EXPECT_NE(map.at("Key1").type, ValueType::VALUE);
+
+    // Key 2 lives even though it was deleted.
+    ASSERT_TRUE(map.contains("Key2"));
+    EXPECT_EQ(map.at("Key2").type, ValueType::VALUE);
+    EXPECT_NE(map.at("Key2").type, ValueType::TOMBSTONE);
+
+    // Key3, was removed so it doesn't exist.
+    EXPECT_FALSE(map.contains("Key3"));
+
+    // Check size, three record exist.
+    EXPECT_EQ(map.size(), 3);
+
+}
+
 
 

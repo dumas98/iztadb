@@ -48,5 +48,12 @@ class MemTable {
          * @param key the key to delete
          */
         void remove(const std::string& key);
+
+         /**
+         * @brief Returns the map.
+         * @return Map from MemTable, immutable.
+         */
+        const std::map<std::string, Entry>& get_map() const;
+
 };
 
