@@ -80,3 +80,16 @@ target_sources(LogReaderTest
 target_include_directories(LogReaderTest PRIVATE src)
 target_link_libraries(LogReaderTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(LogReaderTest)
+
+# SSTableWriter.
+add_executable(SSTableWriterTest)
+target_sources(SSTableWriterTest
+        PRIVATE
+        tests/sstable_writer_test.cpp
+        src/sstable_writer.cpp
+        src/sstable_utils.cpp
+        src/memtable.cpp
+)
+target_include_directories(SSTableWriterTest PRIVATE src)
+target_link_libraries(SSTableWriterTest GTest::gtest_main ZLIB::ZLIB)
+gtest_discover_tests(SSTableWriterTest)

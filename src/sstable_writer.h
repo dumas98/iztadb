@@ -121,4 +121,52 @@ class SSTableWriter {
          */
         bool flush_mem_table(const MemTable& mem_table);
 
+        /**
+        * @brief Writes the fixed footer that terminates every SSTable file.
+        *
+        * Layout: [index_offset (uintmax_t)][magic (uint32_t)], always the last
+        * kFooterSize bytes.
+        *
+        * @param index_offset File offset where the index section begins.
+        */
+        void write_footer(uintmax_t index_offset);
+
+        /**
+         * @brief Returns the directory this SSTableWriter writes files into.
+         * @return SSTable output directory.
+         */
+        std::filesystem::path get_sstable_path();
+
+        /**
+         * @brief Returns the byte threshold at which a data block is closed.
+         * @return Configured block size, in bytes.
+         */
+        uintmax_t get_block_size();
+
+        /**
+         * @brief Returns the path of the file currently being (or last) written.
+         * @return Current write path.
+         */
+        std::filesystem::path get_write_path();
+
+        /**
+         * @brief Returns the segment number that will be assigned to the next
+         * SSTable file this writer produces.
+         * @return Next segment number.
+         */
+        int get_latest_segment_num();
+
+        /**
+         * @brief Returns the in-memory buffer for the data block currently being built.
+         * @return Current block buffer.
+         */
+        std::vector<uint8_t> get_block_buffer();
+
+        /**
+         * @brief Returns the index entries recorded so far for the file currently
+         *        being flushed.
+         * @return Accumulated index entries.
+         */
+        std::vector<IndexEntry> get_index_entries();
+
 };

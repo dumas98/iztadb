@@ -15,10 +15,15 @@ SSTableWriter::SSTableWriter(const std::string& sst_path, uintmax_t block_size) 
     this->block_size = block_size;
     latest_segment_num = iztadb::sstable::calculate_latest_segment(sst_path);
     // Write path is latest_segment_num plus one.
-    write_path = sst_path + "/" + std::format("{:06d}.sst", latest_segment_num);
+    write_path = sst_path + "/" + std::format("{:06d}.sst", latest_segment_num + 1);
 }
 
 bool SSTableWriter::flush_mem_table(const MemTable& mem_table) {
+
+    // Start from blank state.
+    index_entries.clear();
+    block_buffer.clear();
+
     // Open new file.
     file.open(write_path, std::ios::binary);
     if (!file.is_open()) return false;
@@ -43,14 +48,19 @@ bool SSTableWriter::flush_mem_table(const MemTable& mem_table) {
         close_block(block_counter, segment_counter, last_key);
     }
 
-
     // Write index to file.
     write_index();
 
     // Write footer.
     uintmax_t index_offset = segment_counter;
-    // write_footer(index_offset);
+    write_footer(index_offset);
     file.close();
+
+    // Recalculate write path
+    latest_segment_num++;
+    write_path = sst_path + "/" + std::format("{:06d}.sst", latest_segment_num + 1);
+
+    return true;
 
 }
 
@@ -112,6 +122,35 @@ uintmax_t SSTableWriter::write_index() {
         file.write(reinterpret_cast<const char*>(&index_entry.offset), sizeof(index_entry.offset));
         file.write(reinterpret_cast<const char*>(&index_entry.size), sizeof(index_entry.size));
     }
+}
+
+void SSTableWriter::write_footer(uintmax_t index_offset) {
+    file.write(reinterpret_cast<const char*>(&index_offset), sizeof(index_offset));
+    file.write(reinterpret_cast<const char*>(&iztadb::sstable::kMagic), sizeof(iztadb::sstable::kMagic));
+}
+
+std::filesystem::path SSTableWriter::get_sstable_path() {
+    return sst_path;
+}
+
+uintmax_t SSTableWriter::get_block_size() {
+    return block_size;
+}
+
+std::filesystem::path SSTableWriter::get_write_path() {
+    return write_path;
+}
+
+int SSTableWriter::get_latest_segment_num() {
+    return latest_segment_num;
+}
+
+std::vector<uint8_t> SSTableWriter::get_block_buffer() {
+    return block_buffer;
+}
+
+std::vector<IndexEntry> SSTableWriter::get_index_entries() {
+    return index_entries;
 }
 
 
