@@ -103,7 +103,6 @@ TEST_F(MemTableTest, ReturnsTable) {
     mem_table.put("Key2", "Value2");
     mem_table.remove("Key2");
     mem_table.put("Key2", "Value2");
-    mem_table.put("Key4", "Value4");
     mem_table.remove("Key1");
     mem_table.remove("Key3");
 
@@ -119,8 +118,9 @@ TEST_F(MemTableTest, ReturnsTable) {
     EXPECT_EQ(map.at("Key2").type, ValueType::VALUE);
     EXPECT_NE(map.at("Key2").type, ValueType::TOMBSTONE);
 
-    // Key3, was removed so it doesn't exist.
-    EXPECT_FALSE(map.contains("Key3"));
+    // Key3, was removed without a previous record existing.
+    ASSERT_TRUE(map.contains("Key3"));
+    EXPECT_EQ(map.at("Key3").type, ValueType::TOMBSTONE);
 
     // Check size, three record exist.
     EXPECT_EQ(map.size(), 3);

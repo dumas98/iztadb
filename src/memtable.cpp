@@ -21,14 +21,8 @@ optional<string> MemTable::get(const string& key) {
     return nullopt;
 }
 
-void MemTable::remove(const string& key) {
-    // Search for key first to avoid writing an empty record.
-    auto it = table.find(key);
-
-    // If key exists, and it's a non-tombstone ValueType, change it to tombstone record.
-    if ((it != table.end()) && (it->second.type == ValueType::VALUE)) {
-        table[key] = { ValueType::TOMBSTONE, "" };
-    }
+void MemTable::remove(const std::string& key) {
+    table[key] = { ValueType::TOMBSTONE, "" };
 }
 
 const std::map<std::string, Entry>& MemTable::get_map() const {

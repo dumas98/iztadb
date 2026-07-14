@@ -237,6 +237,153 @@ TEST_F(SSTableWriterTest, MultipleRecordWrites) {
 
 }
 
+// Multiple Tombstone Writes.
+TEST_F(SSTableWriterTest, MultipleTombstoneWrites) {
+    // Set up for tests.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Iterator.
+    int iterator = 8;
+
+    // Add data to MemTable first, then remove it, only tombstones
+    // keys that currently exist.
+    for (int i = 1; i <= iterator; ++i) {
+        string key = "key" + to_string(i);
+        string value = "value" + to_string(i);
+        mem_table->put(key, value);
+    }
+    for (int i = 1; i <= iterator; ++i) {
+        string key = "key" + to_string(i);
+        mem_table->remove(key);
+    }
+
+    // Add one last record where it only was removed and never existed before.
+    mem_table->remove("key9");
+
+    // Check tombstones were written to MemTable.
+    for (int i = 1; i <= iterator; ++i) {
+        string key = "key" + to_string(i);
+        EXPECT_EQ(mem_table->get(key), std::nullopt);
+    }
+
+    // Flush MemTable, check it was created.
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+    filesystem::path sst_file = filesystem::path(sst_path_1kb) / "000001.sst";
+    ASSERT_TRUE(std::filesystem::exists(sst_file));
+
+    // Open file.
+    ifstream in(sst_file, std::ios::binary);
+    ASSERT_TRUE(in.is_open());
+
+    // Retrieve Records.
+    for (int i = 1; i <= iterator+1; ++i) {
+        // Expected Variables
+        string exp_key = "key" + to_string(i);
+        uint32_t exp_key_len = 4;
+
+        // Tombstones carry no value bytes.
+        uint32_t exp_value_len = 0;
+
+        uint32_t key_len;
+        in.read(reinterpret_cast<char*>(&key_len), sizeof(key_len));
+        EXPECT_EQ(key_len, exp_key_len);
+
+        string key(key_len, '\0');
+        in.read(key.data(), key_len);
+        EXPECT_EQ(key, exp_key);
+
+        uint8_t type;
+        in.read(reinterpret_cast<char*>(&type), sizeof(type));
+        EXPECT_EQ(static_cast<ValueType>(type), ValueType::TOMBSTONE);
+
+        uint32_t value_len;
+        in.read(reinterpret_cast<char*>(&value_len), sizeof(value_len));
+        EXPECT_EQ(value_len, exp_value_len);
+
+    }
+}
+
+// Mixed Put and Tombstone Writes.
+TEST_F(SSTableWriterTest, MixedPutAndTombstoneWrites) {
+    // Set up for tests.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    int iterator = 9;
+
+    // Put every key first.
+    for (int i = 1; i <= iterator; ++i) {
+        string key = "key" + to_string(i);
+        string value = "value" + to_string(i);
+        mem_table->put(key, value);
+    }
+
+    // Tombstone every other key.
+    for (int i = 2; i <= iterator; i += 2) {
+        string key = "key" + to_string(i);
+        mem_table->remove(key);
+    }
+
+    // Test MemTable was correctly populated.
+    for (int i = 1; i <= iterator; ++i) {
+        string key = "key" + to_string(i);
+        if (i % 2 == 0) {
+            EXPECT_EQ(mem_table->get(key), std::nullopt);
+        } else {
+            EXPECT_EQ(mem_table->get(key), "value" + to_string(i));
+        }
+    }
+
+    // Flush, check file was created.
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+    filesystem::path sst_file = filesystem::path(sst_path_1kb) / "000001.sst";
+    ASSERT_TRUE(std::filesystem::exists(sst_file));
+
+    ifstream in(sst_file, std::ios::binary);
+    ASSERT_TRUE(in.is_open());
+
+    // Sorted order of keys.
+    std::vector<std::string> expected_order = {
+        "key1", "key2", "key3", "key4", "key5",
+        "key6", "key7", "key8", "key9"
+    };
+
+    for (const auto& exp_key : expected_order) {
+        // Even numbers are Tombstone.
+        int i = std::stoi(exp_key.substr(3));
+        bool is_tombstone = (i % 2 == 0);
+
+        // Key size is the same for all.
+        uint32_t key_len;
+        in.read(reinterpret_cast<char*>(&key_len), sizeof(key_len));
+        EXPECT_EQ(key_len, exp_key.size());
+
+        // Test key follows sorted order.
+        string key(key_len, '\0');
+        in.read(key.data(), key_len);
+        EXPECT_EQ(key, exp_key);
+
+        // Type and value len is the same.
+        uint8_t type;
+        in.read(reinterpret_cast<char*>(&type), sizeof(type));
+
+        uint32_t value_len;
+        in.read(reinterpret_cast<char*>(&value_len), sizeof(value_len));
+
+        // Tombstones have a 0 value len and values follow PUT logic from previous tests.
+        if (is_tombstone) {
+            EXPECT_EQ(static_cast<ValueType>(type), ValueType::TOMBSTONE);
+            EXPECT_EQ(value_len, 0);
+        } else {
+            EXPECT_EQ(static_cast<ValueType>(type), ValueType::VALUE);
+            string exp_value = "value" + to_string(i);
+            EXPECT_EQ(value_len, exp_value.size());
+            string value(value_len, '\0');
+            in.read(value.data(), value_len);
+            EXPECT_EQ(value, exp_value);
+        }
+    }
+}
+
 // Check SSTable block is in correct order.
 TEST_F(SSTableWriterTest, OrdersRecordsRegardlessOfInsertionOrder) {
     sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
@@ -284,7 +431,7 @@ TEST_F(SSTableWriterTest, OrdersRecordsRegardlessOfInsertionOrder) {
     }
 }
 
-// 4. Index Layouts
+// 4. Block Boundaries via indexes.
 TEST_F(SSTableWriterTest, IndexEntriesMatchExactBlockBoundaries) {
 
     // Fixed sized records.
@@ -380,12 +527,129 @@ TEST_F(SSTableWriterTest, OrdersRecordsAcrossMultipleBlocks) {
         EXPECT_LT(entries[b].last_key, entries[b + 1].last_key);
     }
 
-    // Test the  first and  last keys on disk match the sorted extremes.
+    // Test the first and last keys on disk match the sorted extremes.
     EXPECT_EQ(entries.front().offset, 0);
     EXPECT_EQ(entries.back().last_key, "key099");
 }
 
+TEST_F(SSTableWriterTest, TombstonesRespectBlockBoundaries) {
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
 
+    int total_records = 100;
+    // Same logic key000, key001
+    uint32_t key_len = 6;
+
+    // Non-tombstone records are 50 as well
+    uint32_t value_len = 50;
+    uint32_t crc_size = sizeof(uint32_t);
+
+    // Same logic as previous test, 65.
+    // Tombstone is 15, missing the x*50 part.
+    uint32_t put_record_size = sizeof(uint32_t) + key_len + sizeof(uint8_t) + sizeof(uint32_t) + value_len;   // 65
+    uint32_t tombstone_record_size = sizeof(uint32_t) + key_len + sizeof(uint8_t) + sizeof(uint32_t);
+
+    // Build MemTable: put every key, then tombstone every 5th.
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        mem_table->put(key, std::string(value_len, 'x'));
+    }
+    for (int i = 0; i < total_records; i += 5) {
+        mem_table->remove(std::format("key{:03d}", i));
+    }
+
+    // Build a list of structs of what's the expected index.
+    struct ExpectedBlock { uintmax_t offset; uintmax_t size; std::string last_key; };
+    std::vector<ExpectedBlock> expected_blocks;
+
+    uintmax_t running_offset = 0;
+    uint32_t running_size = 0;
+    std::string last_key;
+
+    // Build expected indexes.
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        bool is_tombstone = (i % 5 == 0);
+
+        // running_size depends if record is a tombstone.
+        running_size += is_tombstone ? tombstone_record_size : put_record_size;
+        last_key = key;
+
+        // Only register after it passed the block threshold, add block size to offset and restart
+        // block size.
+        if (running_size >= 1024) {
+            running_size += crc_size;
+            expected_blocks.push_back({running_offset, running_size, last_key});
+            running_offset += running_size;
+            running_size = 0;
+        }
+    }
+
+    // Last block, add remaining index.
+    if (running_size > 0) {
+        running_size += crc_size;
+        expected_blocks.push_back({running_offset, running_size, last_key});
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+
+    // Compare actual indexes size vs. expected.
+    ASSERT_EQ(entries.size(), expected_blocks.size());
+    for (size_t b = 0; b < entries.size(); ++b) {
+        EXPECT_EQ(entries[b].offset, expected_blocks[b].offset);
+        EXPECT_EQ(entries[b].size, expected_blocks[b].size);
+        EXPECT_EQ(entries[b].last_key, expected_blocks[b].last_key);
+    }
+
+    // Same as ordering records, the previous key is less that the next key to check ordering.
+    // Check correct offsets.
+    for (size_t b = 0; b + 1 < entries.size(); ++b) {
+        EXPECT_LT(entries[b].last_key, entries[b + 1].last_key);
+        EXPECT_EQ(entries[b].offset + entries[b].size, entries[b + 1].offset);
+    }
+}
+
+// 5. Test Checksum
+// Test it's working correctly for a single block.
+TEST_F(SSTableWriterTest, BlockChecksumIsValid)
+{
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Insert values to MemTable.
+    mem_table->put("key1", "value1");
+    mem_table->put("key2", "value2");
+    mem_table->put("key3", "value3");
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Return indexes.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_EQ(entries.size(), 1);
+
+    filesystem::path sst_file = filesystem::path(sst_path_1kb) / "000001.sst";
+    std::ifstream in(sst_file, std::ios::binary);
+    ASSERT_TRUE(in.is_open());
+
+    // Block is first entry.
+    const IndexEntry& block = entries[0];
+
+    // Build a buffer with block in a vector of bytes.
+    std::vector<uint8_t> block_bytes(block.size);
+    in.seekg(block.offset);
+    in.read(reinterpret_cast<char*>(block_bytes.data()), block.size);
+    ASSERT_TRUE(in.good());
+
+    // Extract calculated CRC from block.
+    uint32_t stored_crc;
+    std::memcpy(&stored_crc, block_bytes.data() + block.size - sizeof(uint32_t), sizeof(uint32_t));
+
+    // Extract data portion and recalculate CRC.
+    std::vector<uint8_t> data_only(block_bytes.begin(), block_bytes.end() - sizeof(uint32_t));
+    uint32_t recomputed_crc = iztadb::sstable::calculate_crc32(data_only);
+
+    // Both numbers must match.
+    EXPECT_EQ(stored_crc, recomputed_crc);
+}
 
 
 
