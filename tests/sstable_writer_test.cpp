@@ -41,6 +41,20 @@ protected:
         std::filesystem::remove_all("./test_data/");
         std::cout << "Test Ended." << std::endl;
     }
+
+    // Test helper, corrupt one byte inside a file.
+    void corrupt_byte_at(const std::filesystem::path& path, uintmax_t offset) {
+        std::fstream corrupt(path, std::ios::binary | std::ios::in | std::ios::out);
+        ASSERT_TRUE(corrupt.is_open());
+
+        char original_byte;
+        corrupt.seekg(offset);
+        corrupt.read(&original_byte, 1);
+
+        char flipped_byte = original_byte ^ 0xFF;
+        corrupt.seekp(offset);
+        corrupt.write(&flipped_byte, 1);
+    }
 };
 
 // 1. Test constructors
@@ -650,6 +664,141 @@ TEST_F(SSTableWriterTest, BlockChecksumIsValid)
     // Both numbers must match.
     EXPECT_EQ(stored_crc, recomputed_crc);
 }
+
+// Corrupt a block and checksum verification works.
+TEST_F(SSTableWriterTest, CorruptedBlockFailsChecksumVerification) {
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    mem_table->put("key1", "value1");
+    mem_table->put("key2", "value2");
+    mem_table->put("key3", "value3");
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_EQ(entries.size(), 1);
+
+    filesystem::path sst_file = filesystem::path(sst_path_1kb) / "000001.sst";
+
+    // Record size minus checksum.
+    uintmax_t data_len = entries[0].size - sizeof(uint32_t);
+
+    // Corrupt a byte middle of file.
+    uintmax_t offset = entries[0].offset + (data_len / 2);
+    corrupt_byte_at(sst_file, offset);
+
+    // Open file.
+    std::ifstream in(sst_file, std::ios::binary);
+    ASSERT_TRUE(in.is_open());
+
+    // Get index for entry 0.
+    const IndexEntry& block = entries[0];
+
+    // Read block bytes to vector buffer.
+    std::vector<uint8_t> block_bytes(block.size);
+    in.seekg(block.offset);
+    in.read(reinterpret_cast<char*>(block_bytes.data()), block.size);
+    ASSERT_TRUE(in.good());
+
+    // Extract Checksum from original record.
+    uint32_t stored_crc;
+    std::memcpy(&stored_crc, block_bytes.data() + block.size - sizeof(uint32_t), sizeof(uint32_t));
+
+    // Extract Corrupted data and recompute checksum, checksums dont match.
+    std::vector<uint8_t> data_only(block_bytes.begin(), block_bytes.end() - sizeof(uint32_t));
+    uint32_t recomputed_crc = iztadb::sstable::calculate_crc32(data_only);
+
+    // Checksums don't match.
+    EXPECT_NE(stored_crc, recomputed_crc);
+}
+
+// 6. Test Footer.
+TEST_F(SSTableWriterTest, FooterMagicNumberIsCorrect) {
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Insert data to MemTable.
+    mem_table->put("key1", "value1");
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    filesystem::path sst_file = filesystem::path(sst_path_1kb) / "000001.sst";
+    ASSERT_TRUE(std::filesystem::exists(sst_file));
+
+    // Open file.
+    std::ifstream in(sst_file, std::ios::binary);
+    ASSERT_TRUE(in.is_open());
+
+    // File size is greater than footer.
+    uintmax_t file_size = std::filesystem::file_size(sst_file);
+    ASSERT_GE(file_size, iztadb::sstable::kFooterSize);
+
+    // Go to footer.
+    in.seekg(file_size - iztadb::sstable::kFooterSize);
+
+    // Pass index offset.
+    uintmax_t index_offset;
+    in.read(reinterpret_cast<char*>(&index_offset), sizeof(index_offset));
+
+    // Read magic and check it matches with actual magic.
+    uint32_t magic;
+    in.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+
+    EXPECT_EQ(magic, iztadb::sstable::kMagic);
+}
+
+// Retrieve Footer Index and validate index.
+TEST_F(SSTableWriterTest, FooterIndexOffsetPointsToValidIndex) {
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Insert data to MemTable.
+    mem_table->put("key1", "value1");
+    mem_table->put("key2", "value2");
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    filesystem::path sst_file = filesystem::path(sst_path_1kb) / "000001.sst";
+    ASSERT_TRUE(std::filesystem::exists(sst_file));
+
+    // Open file.
+    std::ifstream in(sst_file, std::ios::binary);
+    ASSERT_TRUE(in.is_open());
+
+    // Use file size to seek for footer.
+    uintmax_t file_size = std::filesystem::file_size(sst_file);
+    in.seekg(file_size - iztadb::sstable::kFooterSize);
+
+    // Extract index_offset (where indexes start).
+    uintmax_t index_offset;
+    in.read(reinterpret_cast<char*>(&index_offset), sizeof(index_offset));
+
+    // The index should start exactly where the last data block ended.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_FALSE(entries.empty());
+    uintmax_t expected_index_offset = entries.back().offset + entries.back().size;
+
+    EXPECT_EQ(index_offset, expected_index_offset);
+
+    // Read all indexes entries and match vs. actual index values, they must match.
+    in.seekg(index_offset);
+    for (const auto& entry : entries) {
+        uint32_t key_len;
+        in.read(reinterpret_cast<char*>(&key_len), sizeof(key_len));
+        EXPECT_EQ(key_len, entry.last_key.size());
+
+        std::string key(key_len, '\0');
+        in.read(key.data(), key_len);
+        EXPECT_EQ(key, entry.last_key);
+
+        uintmax_t offset;
+        in.read(reinterpret_cast<char*>(&offset), sizeof(offset));
+        EXPECT_EQ(offset, entry.offset);
+
+        uint32_t size;
+        in.read(reinterpret_cast<char*>(&size), sizeof(size));
+        EXPECT_EQ(size, entry.size);
+    }
+
+    // After reading all indexes read cursor must be before footer.
+    EXPECT_EQ(in.tellg(), static_cast<std::streampos>(file_size - iztadb::sstable::kFooterSize));
+}
+
 
 
 
