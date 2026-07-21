@@ -94,3 +94,18 @@ target_sources(SSTableWriterTest
 target_include_directories(SSTableWriterTest PRIVATE src)
 target_link_libraries(SSTableWriterTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(SSTableWriterTest)
+
+# SSTableReader.
+add_executable(SSTableReaderTest)
+target_sources(SSTableReaderTest
+        PRIVATE
+        tests/sstable_writer_test.cpp
+        tests/sstable_reader_test.cpp
+        src/sstable_writer.cpp
+        src/sstable_utils.cpp
+        src/memtable.cpp
+        src/sstable_reader.cpp
+)
+target_include_directories(SSTableReaderTest PRIVATE src)
+target_link_libraries(SSTableReaderTest GTest::gtest_main ZLIB::ZLIB)
+gtest_discover_tests(SSTableReaderTest)

@@ -162,3 +162,15 @@ GetResult SSTableReader::get(const std::string& key) {
     // Return Result after scanning block.
     return scan_block(block.value(), key);
 }
+
+std::filesystem::path SSTableReader::get_sst_path() {
+    return sst_path;
+}
+
+std::vector<IndexEntry> SSTableReader::get_index_entries() {
+    return index_entries;
+}
+
+uintmax_t SSTableReader::get_index_offset() {
+    return index_offset;
+}

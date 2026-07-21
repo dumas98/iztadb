@@ -120,6 +120,24 @@ class SSTableReader {
          * fails, the block is corrupted.
          */
         GetResult get(const std::string& key);
+
+        /**
+         * @brief Returns the path of the file opened.
+         * @return SSTable file path.
+         */
+        std::filesystem::path get_sst_path();
+
+        /**
+         * @brief Returns index entries.
+         * @return index entries.
+         */
+        std::vector<IndexEntry> get_index_entries();
+
+        /**
+         * @brief Returns the byte offset where the index section begins.
+         * @return Index offset.
+         */
+        uintmax_t get_index_offset();
 };
 
 
