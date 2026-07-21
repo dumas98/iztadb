@@ -31,6 +31,7 @@ target_sources(MainExecutable
         src/log_utils.cpp
         src/log_reader.cpp
         src/sstable_writer.cpp
+        src/sstable_reader.cpp
         src/sstable_utils.cpp
 )
 

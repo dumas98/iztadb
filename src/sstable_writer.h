@@ -6,16 +6,7 @@
 #include <string>
 #include "memtable.h"
 #include <fstream>
-
-/**
- * @brief One sparse index entry: a data block's boundary key, offset, and size.
- * One entry per block, not per key.
- */
-struct IndexEntry {
-    std::string last_key; // Last key written into this block.
-    uintmax_t offset; // Byte position where the block starts.
-    uint32_t size; // Block size in bytes, including its CRC32 checksum.
-};
+#include "sstable_utils.h"
 
 /**
  * @brief Writes an immutable, sorted SSTable file to disk from a flushed MemTable.

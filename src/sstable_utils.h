@@ -45,3 +45,32 @@ namespace iztadb::sstable {
 
 }
 
+/**
+ * @brief One sparse index entry: a data block's boundary key, offset, and size.
+ * One entry per block, not per key.
+ */
+struct IndexEntry {
+    std::string last_key; // Last key written into this block.
+    uintmax_t offset; // Byte position where the block starts.
+    uint32_t size; // Block size in bytes, including its CRC32 checksum.
+};
+
+/**
+ * @brief The outcome of looking up a key in one SSTable file.
+ *
+ */
+enum class LookupResult {
+    FOUND, // A live PUT record matched the key.
+    DELETED, // A tombstone matched the key.
+    NOT_FOUND // No record for this key exists in this file.
+};
+
+/**
+ * @brief The result of an SSTableReader::get() call.
+ *
+ * value is only meaningful when status == FOUND.
+ */
+struct GetResult {
+    LookupResult status; // Which of the three outcomes this is.
+    std::optional<std::string> value; // The stored value, present only when status == FOUND.
+};
