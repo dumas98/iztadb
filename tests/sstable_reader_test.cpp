@@ -7,6 +7,8 @@
 #include "sstable_utils.h"
 #include "sstable_writer.h"
 #include "sstable_reader.h"
+#include <random>
+#include <set>
 
 using namespace std;
 
@@ -273,6 +275,279 @@ TEST_F(SSTableReaderTest, DeletePutDeleteRoundTrip) {
     // Only the final tombstone should exist in the file, no intermediate put.
     std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
     EXPECT_EQ(entries.size(), 1);
+}
+
+// 3. Test multiple blocks.
+// 1K put operations.
+TEST_F(SSTableReaderTest, RoundTripPutsAcrossMultipleBlocks) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm multiple blocks were built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 1);
+
+    // Instantiate SSTableReader.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    sstable_reader = new SSTableReader(sst_file);
+
+    // Confirm the reader loaded the same number of blocks the writer produced.
+    EXPECT_EQ(sstable_reader->get_index_entries().size(), entries.size());
+
+    // Test each of the 1K records were found and has the correct value.
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string expected_value = std::format("value{:03d}", i);
+
+        GetResult result = sstable_reader->get(key);
+
+        ASSERT_EQ(result.status, LookupResult::FOUND);
+        ASSERT_TRUE(result.value.has_value());
+        EXPECT_EQ(result.value.value(), expected_value);
+    }
+}
+
+// 1K put operations and delete them immediately.
+TEST_F(SSTableReaderTest, RoundTripPutsDeletesAcrossMultipleBlocks) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    // Remove all records.
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        mem_table->remove(key);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm multiple blocks were built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 1);
+
+    // Instantiate SSTableReader.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    sstable_reader = new SSTableReader(sst_file);
+
+    // Confirm the reader loaded the same number of blocks the writer produced.
+    EXPECT_EQ(sstable_reader->get_index_entries().size(), entries.size());
+
+    // Test each of the 1K records were DELETED and has the correct value.
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string expected_value = std::format("value{:03d}", i);
+
+        GetResult result = sstable_reader->get(key);
+
+        ASSERT_EQ(result.status, LookupResult::DELETED);
+        ASSERT_FALSE(result.value.has_value());
+    }
+}
+
+// Put and Tombstone records at scale.
+TEST_F(SSTableReaderTest, MixedPutAndTombstoneAtScaleRandomIntervals) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    // Delete keys at random intervals of 1-10.
+    // Put a fixed seed so test has the same results each time.
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> gap(1, 10);
+
+    // Track deleted indices in a set.
+    std::set<int> deleted_indices;
+
+    // First deletion at a random offset.
+    int i = gap(rng);
+
+    // Remove keys.
+    while (i < total_records) {
+        std::string key = std::format("key{:03d}", i);
+        mem_table->remove(key);
+        deleted_indices.insert(i);
+        i += gap(rng);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm multiple blocks were built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 1);
+
+    // Instantiate SSTableReader.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    sstable_reader = new SSTableReader(sst_file);
+
+    // Track tests works.
+    int checked_found = 0;
+    int checked_deleted = 0;
+
+    // Iterate through all records.
+    for (int j = 0; j < total_records; ++j) {
+        std::string key = std::format("key{:03d}", j);
+        GetResult result = sstable_reader->get(key);
+
+        // If record was deleted it should not contain no value and be DELETED.
+        if (deleted_indices.count(j)) {
+            EXPECT_EQ(result.status, LookupResult::DELETED);
+            EXPECT_FALSE(result.value.has_value());
+            ++checked_deleted;
+        } else {
+            std::string expected_value = std::format("value{:03d}", j);
+            ASSERT_EQ(result.status, LookupResult::FOUND);
+            ASSERT_TRUE(result.value.has_value());
+            EXPECT_EQ(result.value.value(), expected_value);
+            ++checked_found;
+        }
+    }
+
+    // Verify the test ran correctly and went through each of the records.
+    EXPECT_GT(checked_deleted, 0);
+    EXPECT_GT(checked_found, 0);
+    EXPECT_EQ(checked_found + checked_deleted, total_records);
+}
+
+// Multiple Non-existent keys.
+TEST_F(SSTableReaderTest, KeysNotFoundLookups) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm multiple blocks were built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 1);
+
+    // Instantiate SSTableReader.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    sstable_reader = new SSTableReader(sst_file);
+
+    // Query 1000 keys that were never written, format missing000.
+    // Values aren't found.
+    for (int i = 0; i < total_records; ++i) {
+        std::string missing_key = std::format("missing{:03d}", i);
+        GetResult result = sstable_reader->get(missing_key);
+
+        EXPECT_EQ(result.status, LookupResult::NOT_FOUND);
+        EXPECT_FALSE(result.value.has_value());
+    }
+}
+
+// 1K put operations, inserted in reverse order.
+TEST_F(SSTableReaderTest, RoundTripPutsAcrossMultipleBlocksReverse) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    // Insert key999 down to key000 in reverse order to verify MemTable sorted records.
+    for (int i = total_records - 1; i >= 0; --i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm multiple blocks were built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 1);
+
+    // Instantiate SSTableReader.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    sstable_reader = new SSTableReader(sst_file);
+
+    // Confirm the reader loaded the same number of blocks the writer produced.
+    EXPECT_EQ(sstable_reader->get_index_entries().size(), entries.size());
+
+    // Test each of the 1K records were found and has the correct value, proving sorted order.
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string expected_value = std::format("value{:03d}", i);
+
+        GetResult result = sstable_reader->get(key);
+
+        ASSERT_EQ(result.status, LookupResult::FOUND);
+        ASSERT_TRUE(result.value.has_value());
+        EXPECT_EQ(result.value.value(), expected_value);
+    }
+}
+
+// All indexes boundary keys get written.
+TEST_F(SSTableReaderTest, BoundaryKeyLookups) {
+
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm multiple blocks were built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 1);
+
+    // Instantiate SSTableReader.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    sstable_reader = new SSTableReader(sst_file);
+
+    // Query every block's exact last_key.
+    for (const auto& entry : entries) {
+        GetResult result = sstable_reader->get(entry.last_key);
+
+        EXPECT_EQ(result.status, LookupResult::FOUND);
+        ASSERT_TRUE(result.value.has_value());
+
+        // Derive the expected value from the key itself.
+        std::string index_str = entry.last_key.substr(3);
+        std::string expected_value = "value" + index_str;
+        EXPECT_EQ(result.value.value(), expected_value);
+    }
 }
 
 
