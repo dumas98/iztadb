@@ -550,5 +550,93 @@ TEST_F(SSTableReaderTest, BoundaryKeyLookups) {
     }
 }
 
+// 4. Test Corruption
+// Corrupt a one-block file.
+TEST_F(SSTableReaderTest, CorruptedBlockThrowsOnGet) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    mem_table->put("key1", "value1");
+    mem_table->put("key2", "value2");
+    mem_table->put("key3", "value3");
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Confirm one block was built.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_EQ(entries.size(), 1);
+
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+
+    // Corrupt a byte in the middle of the block's data.
+    uintmax_t data_len = entries[0].size - sizeof(uint32_t);
+    uintmax_t deep_offset = entries[0].offset + (data_len / 2);
+    corrupt_byte_at(sst_file, deep_offset);
+
+    sstable_reader = new SSTableReader(sst_file);
+
+    // The corruption is inside the block, runtime_error is thrown.
+    EXPECT_THROW(sstable_reader->get("key2"), std::runtime_error);
+}
+
+// Corrupt second block instead.
+TEST_F(SSTableReaderTest, CorruptedSecondBlock) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    // Write 1K distinct kv-pairs with the format key001: value001, ...
+    int total_records = 1000;
+
+    for (int i = 0; i < total_records; ++i) {
+        std::string key = std::format("key{:03d}", i);
+        std::string value = std::format("value{:03d}", i);
+        mem_table->put(key, value);
+    }
+
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // More than two blocks need to exist.
+    std::vector<IndexEntry> entries = sstable_writer_1kb->get_index_entries();
+    ASSERT_GT(entries.size(), 2);
+
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+
+    // Corrupt a byte in the middle of the second block's data specifically,
+    // confirming detection isn't tied to first read block.
+    const IndexEntry& second_block = entries[1];
+    uintmax_t data_len = second_block.size - sizeof(uint32_t);
+    uintmax_t deep_offset = second_block.offset + (data_len / 2);
+    corrupt_byte_at(sst_file, deep_offset);
+
+    sstable_reader = new SSTableReader(sst_file);
+
+    // The corruption is inside the block, runtime_error is thrown.
+    EXPECT_THROW(sstable_reader->get(second_block.last_key), std::runtime_error);
+
+    // Sanity check: a key in the first block still works.
+    GetResult first_block_result = sstable_reader->get(entries[0].last_key);
+    EXPECT_EQ(first_block_result.status, LookupResult::FOUND);
+}
+
+// Corrupt Magic Number.
+TEST_F(SSTableReaderTest, CorruptedMagicNumber) {
+    // Set up SSTableWriter and MemTable for test.
+    sstable_writer_1kb = new SSTableWriter(sst_path_1kb, 1024);
+
+    mem_table->put("key1", "value1");
+    ASSERT_TRUE(sstable_writer_1kb->flush_mem_table(*mem_table));
+
+    // Test file was correctly set up.
+    std::filesystem::path sst_file = std::filesystem::path(sst_path_1kb) / "000001.sst";
+    ASSERT_TRUE(std::filesystem::exists(sst_file));
+
+    // Corruption inside the 4-byte magic field.
+    uintmax_t file_size = std::filesystem::file_size(sst_file);
+    uintmax_t magic_offset = file_size - sizeof(uint32_t) / 2;
+    corrupt_byte_at(sst_file, magic_offset);
+
+    // Throw happens during construction at load_footer().
+    EXPECT_THROW(sstable_reader = new SSTableReader(sst_file), std::runtime_error);
+}
+
 
 
