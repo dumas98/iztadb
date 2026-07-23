@@ -36,8 +36,7 @@ struct RecoveryResult {
  * the dirty data location. Default is clean data.
  *
  */
-class LogReader
-{
+class LogReader {
 private:
     std::string wal_path;
     int latest_segment_num;

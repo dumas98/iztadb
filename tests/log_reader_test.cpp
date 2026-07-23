@@ -1079,7 +1079,6 @@ TEST_F(LogReaderTest, PartialWriteCloseRBetweenRecordBetweenSegmentsFourRecordsE
         }
     }
 
-
     // Check correct recovery_result.
     EXPECT_EQ(log_reader.get_recovery_result().clean, false);
     EXPECT_EQ(log_reader.get_recovery_result().reached_eof, false);
@@ -1125,7 +1124,6 @@ TEST_F(LogReaderTest, PartialWritesCloseRInsideRecordBetweenSegmentsFourRecordsE
             EXPECT_EQ(mem_table->get("key" + std::to_string(i)), std::nullopt);
         }
     }
-
 
     // Check correct recovery_result.
     EXPECT_EQ(log_reader.get_recovery_result().clean, false);
