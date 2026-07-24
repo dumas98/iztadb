@@ -99,7 +99,6 @@ gtest_discover_tests(SSTableWriterTest)
 add_executable(SSTableReaderTest)
 target_sources(SSTableReaderTest
         PRIVATE
-        tests/sstable_writer_test.cpp
         tests/sstable_reader_test.cpp
         src/sstable_writer.cpp
         src/sstable_utils.cpp
@@ -109,3 +108,21 @@ target_sources(SSTableReaderTest
 target_include_directories(SSTableReaderTest PRIVATE src)
 target_link_libraries(SSTableReaderTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(SSTableReaderTest)
+
+# IztaDB.
+add_executable(IztaDBTest)
+target_sources(IztaDBTest
+        PRIVATE
+        tests/iztadb_test.cpp
+        src/iztadb.cpp
+        src/log_reader.cpp
+        src/log_writer.cpp
+        src/log_utils.cpp
+        src/sstable_writer.cpp
+        src/sstable_reader.cpp
+        src/sstable_utils.cpp
+        src/memtable.cpp
+)
+target_include_directories(IztaDBTest PRIVATE src)
+target_link_libraries(IztaDBTest GTest::gtest_main ZLIB::ZLIB)
+gtest_discover_tests(IztaDBTest)

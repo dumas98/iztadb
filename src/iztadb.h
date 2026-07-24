@@ -89,6 +89,36 @@ public:
      */
     std::optional<std::string> get(const std::string& key);
 
+    /**
+         * @brief Returns the WAL directory this instance was configured with.
+         * @return WAL directory path.
+         */
+    std::filesystem::path get_wal_path();
+
+    /**
+     * @brief Returns the SSTable directory this instance was configured with.
+     * @return SSTable directory path.
+     */
+    std::filesystem::path get_sst_path();
+
+    /**
+     * @brief Returns map threshold that triggers a flush.
+     * @return MemTable threshold.
+     */
+    uintmax_t get_memtable_threshold();
+
+    /**
+     * @brief Returns the byte threshold that triggers WAL segment rotation.
+     * @return Max WAL file size, in bytes.
+     */
+    uintmax_t get_max_wal_file_size();
+
+    /**
+     * @brief Returns the block threshold that triggers block rotation.
+     * @return Block threshold in bytes.
+     */
+    uintmax_t get_block_size();
+
 private:
     /**
      * @brief Scans sst_path for .sst files and opens an SSTableReader

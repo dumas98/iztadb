@@ -4,6 +4,7 @@
 
 // iztadb.cpp
 #include "iztadb.h"
+#include <iostream>
 
 IztaDB::IztaDB(const std::filesystem::path& wal_path, const std::filesystem::path& sst_path,
     uintmax_t memtable_threshold, uintmax_t max_wal_file_size) {
@@ -16,6 +17,7 @@ IztaDB::IztaDB(const std::filesystem::path& wal_path, const std::filesystem::pat
     mem_table = std::make_unique<MemTable>();
 
     std::filesystem::create_directories(wal_path);
+    std::filesystem::create_directories(sst_path);
 
     // Instantiate LogReader, restore MemTable and fix WAL according using
     // the RecoveryResult. If it's empty and no files are found in WAL, it won't
@@ -84,6 +86,7 @@ void IztaDB::put(const std::string& key, const std::string& value) {
 
     // Flush if the threshold was crossed.
     maybe_flush();
+
 }
 
 void IztaDB::remove(const std::string& key) {
@@ -112,8 +115,11 @@ void IztaDB::maybe_flush() {
     bool ok = sstable_writer->flush_mem_table(*old_memtable);
 
     if (ok) {
+
         // Add new data to the SSTable readers.
-        sstable_readers.push_back(std::make_unique<SSTableReader>(sstable_writer->get_write_path()));
+        uintmax_t just_written_segment = sstable_writer->get_latest_segment_num();
+        std::filesystem::path just_written_path = sst_path / std::format("{:06d}.sst", just_written_segment);
+        sstable_readers.push_back(std::make_unique<SSTableReader>(just_written_path));
 
         // Clear WAL directory.
         for (const auto& entry : std::filesystem::directory_iterator(wal_path)) {
@@ -123,6 +129,8 @@ void IztaDB::maybe_flush() {
         }
         // Delete log_writer and replace with a new one.
         log_writer = std::make_unique<LogWriter>(wal_path.string(), max_wal_file_size);
+
+
     } else {
         // Flush failed, get data back to MemTable from the old_memtable previously built.
         for (const auto& [key, entry] : old_memtable->get_map()) {
@@ -156,4 +164,20 @@ std::optional<std::string> IztaDB::get(const std::string& key) {
 
     // Exhausted every file without a match.
     return std::nullopt;
+}
+
+std::filesystem::path IztaDB::get_wal_path() {
+    return wal_path;
+}
+
+std::filesystem::path IztaDB::get_sst_path() {
+    return sst_path;
+}
+
+uintmax_t IztaDB::get_memtable_threshold() {
+    return memtable_threshold;
+}
+
+uintmax_t IztaDB::get_max_wal_file_size() {
+    return max_wal_file_size;
 }

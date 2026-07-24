@@ -146,7 +146,7 @@ TEST_F(SSTableWriterTest, RebuildsMemTableAfterFlush) {
     EXPECT_TRUE(filesystem::exists(second_sst));
     EXPECT_GT(filesystem::file_size(second_sst), 0);
 
-    // Write path should be in the next file.
+    // Write path should be in current file.
     EXPECT_EQ(sstable_writer_1kb->get_write_path(), sst_path_1kb + "/000003.sst");
 }
 
