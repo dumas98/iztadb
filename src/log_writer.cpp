@@ -42,7 +42,7 @@ uint32_t LogWriter::calculate_next_sequence() {
     }
 
     // Open latest segment.
-    string latest_path = wal_path + format("{:06d}.log", latest_segment_num);
+    string latest_path = wal_path + "/" + format("{:06d}.log", latest_segment_num);
     ifstream file(latest_path, ios::binary);
 
     // Throw error if opening file fails.

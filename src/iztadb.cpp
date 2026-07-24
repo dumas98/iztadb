@@ -19,6 +19,8 @@ IztaDB::IztaDB(const std::filesystem::path& wal_path, const std::filesystem::pat
     std::filesystem::create_directories(wal_path);
     std::filesystem::create_directories(sst_path);
 
+
+
     // Instantiate LogReader, restore MemTable and fix WAL according using
     // the RecoveryResult. If it's empty and no files are found in WAL, it won't
     // touch it and will return its default RecoveryResult {true, true, "", 0}.
@@ -28,6 +30,7 @@ IztaDB::IztaDB(const std::filesystem::path& wal_path, const std::filesystem::pat
 
     // LogWriter resumes from wherever the (possibly truncated) WAL now ends.
     log_writer = std::make_unique<LogWriter>(wal_path.string(), max_wal_file_size);
+
 
     sstable_writer = std::make_unique<SSTableWriter>(sst_path, 4096);
 
@@ -144,25 +147,26 @@ void IztaDB::maybe_flush() {
 }
 
 std::optional<std::string> IztaDB::get(const std::string& key) {
-    // Check MemTable first.
-    if (auto value = mem_table->get(key)) {
-        return value;
-    }
+    // Get map from MemTable and search for key.
+    const auto& map = mem_table->get_map();
+    auto it = map.find(key);
 
-    // Check if it exists in SSTables, newest to oldest.
-    for (auto it = sstable_readers.rbegin(); it != sstable_readers.rend(); ++it) {
-        GetResult result = (*it)->get(key);
-
-        // Only stop if it found a value deleted or existing.
-        if (result.status == LookupResult::FOUND) {
-            return result.value;
-        }
-        if (result.status == LookupResult::DELETED) {
+    // If found value.
+    if (it != map.end()) {
+        // Key was deleted.
+        if (it->second.type == ValueType::TOMBSTONE) {
             return std::nullopt;
         }
+        // Send newest data
+        return it->second.value;
     }
 
-    // Exhausted every file without a match.
+    // Key absent from MemTable, search inside SSTables.
+    for (auto rit = sstable_readers.rbegin(); rit != sstable_readers.rend(); ++rit) {
+        GetResult result = (*rit)->get(key);
+        if (result.status == LookupResult::FOUND) return result.value;
+        if (result.status == LookupResult::DELETED) return std::nullopt;
+    }
     return std::nullopt;
 }
 
