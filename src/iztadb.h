@@ -29,6 +29,7 @@ private:
     std::filesystem::path sst_path;
     uintmax_t memtable_threshold;
     uintmax_t max_wal_file_size;
+    uintmax_t block_size;
 
     std::unique_ptr<MemTable> mem_table;
     std::unique_ptr<LogWriter> log_writer;
@@ -54,7 +55,8 @@ public:
         const std::filesystem::path& wal_path = "./data/wal",
         const std::filesystem::path& sst_path = "./data/sst",
         uintmax_t memtable_threshold = 4 * 1024 * 1024,
-        uintmax_t max_wal_file_size = 32 * 1024 * 1024
+        uintmax_t max_wal_file_size = 32 * 1024 * 1024,
+        uintmax_t block_size = 4096
     );
 
     /**

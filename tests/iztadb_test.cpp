@@ -21,7 +21,7 @@ protected:
 
     // Before Each.
     void SetUp() override {
-        iztadb1 = new IztaDB(wal_path1, sst_path1, 10,  32 * 1024 * 1024);
+        iztadb1 = new IztaDB(wal_path1, sst_path1, 10,  32 * 1024 * 1024, 4096);
     }
 
     // After each
@@ -51,6 +51,7 @@ TEST_F(IztaDBTest, ConstructorAssignsAttributesCorrectly) {
     EXPECT_EQ(iztadb1->get_sst_path(), sst_path1);
     EXPECT_EQ(iztadb1->get_memtable_threshold(), 10);
     EXPECT_EQ(iztadb1->get_max_wal_file_size(), 32 * 1024 * 1024);
+    EXPECT_EQ(iztadb1->get_block_size(), 4096);
 }
 
 // Default constructor.
@@ -61,6 +62,7 @@ TEST_F(IztaDBTest, ConstructorAssignsAttributesCorrectlyDefault) {
     EXPECT_EQ(iztadb_default.get_sst_path(), "./data/sst");
     EXPECT_EQ(iztadb_default.get_memtable_threshold(), 4 * 1024 * 1024);
     EXPECT_EQ(iztadb_default.get_max_wal_file_size(), 32 * 1024 * 1024);
+    EXPECT_EQ(iztadb_default.get_block_size(), 4096);
 }
 
 // 2. Standard Operations
@@ -178,7 +180,7 @@ TEST_F(IztaDBTest, CrashRestartRecoversFromWAL) {
     delete iztadb1;
 
     // Reboot IztaDB
-    iztadb1 = new IztaDB(wal_path1, sst_path1, 10, 32 * 1024 * 1024);
+    iztadb1 = new IztaDB(wal_path1, sst_path1, 10, 32 * 1024 * 1024, 4096);
 
     // All three keys should be queryable, with no explicit
     EXPECT_EQ(iztadb1->get("key1"), "value1");
@@ -204,7 +206,7 @@ TEST_F(IztaDBTest, StartWithSSTablesButNoWAL) {
 
     // Reboot IztaDB.
     delete iztadb1;
-    iztadb1 = new IztaDB(wal_path1, sst_path1, 10, 32 * 1024 * 1024);
+    iztadb1 = new IztaDB(wal_path1, sst_path1, 10, 32 * 1024 * 1024, 4096);
 
     // Values should be reachable via SSTables.
     for (int i = 0; i < 10; ++i) {

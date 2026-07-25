@@ -7,11 +7,12 @@
 #include <iostream>
 
 IztaDB::IztaDB(const std::filesystem::path& wal_path, const std::filesystem::path& sst_path,
-    uintmax_t memtable_threshold, uintmax_t max_wal_file_size) {
+    uintmax_t memtable_threshold, uintmax_t max_wal_file_size, uintmax_t block_size) {
     this->wal_path = wal_path;
     this->sst_path = sst_path;
     this->memtable_threshold = memtable_threshold;
     this->max_wal_file_size = max_wal_file_size;
+    this->block_size = block_size;
 
     // Build MemTable.
     mem_table = std::make_unique<MemTable>();
@@ -184,4 +185,8 @@ uintmax_t IztaDB::get_memtable_threshold() {
 
 uintmax_t IztaDB::get_max_wal_file_size() {
     return max_wal_file_size;
+}
+
+uintmax_t IztaDB::get_block_size() {
+    return block_size;
 }

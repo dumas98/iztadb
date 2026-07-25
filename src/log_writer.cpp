@@ -80,7 +80,7 @@ void LogWriter::write_record(const std::string& key, const std::string& value, V
     strncpy(record.value, value.c_str(), sizeof(record.value));
 
     // Assign checksum value after record has all data.
-    record.checksum =  iztadb::wal::calculate_crc32(record);
+    record.checksum = iztadb::wal::calculate_crc32(record);
 
     // Open file, binary mode, output operations happen at the end.
     ofstream file(write_path, ios::binary | ios::app);

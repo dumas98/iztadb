@@ -15,7 +15,18 @@ FetchContent_Declare(
         DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 
-FetchContent_MakeAvailable(googletest)
+# Get Google Benchmark
+FetchContent_Declare(
+        googlebenchmark
+        URL https://github.com/google/benchmark/archive/refs/tags/v1.9.1.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP true
+)
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(googletest googlebenchmark)
+
 
 # Define Project.
 project(IztaDB)
@@ -126,3 +137,22 @@ target_sources(IztaDBTest
 target_include_directories(IztaDBTest PRIVATE src)
 target_link_libraries(IztaDBTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(IztaDBTest)
+
+# IztaDB Benchmarks.
+# IztaDB Benchmarks.
+add_executable(IztaDBBench)
+target_sources(IztaDBBench
+        PRIVATE
+        bench/bench_put_sequential.cpp
+        bench/bench_put_flush_boundary.cpp
+        src/iztadb.cpp
+        src/log_reader.cpp
+        src/log_writer.cpp
+        src/log_utils.cpp
+        src/sstable_writer.cpp
+        src/sstable_reader.cpp
+        src/sstable_utils.cpp
+        src/memtable.cpp
+)
+target_include_directories(IztaDBBench PRIVATE src)
+target_link_libraries(IztaDBBench PRIVATE benchmark::benchmark ZLIB::ZLIB)
