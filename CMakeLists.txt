@@ -145,6 +145,10 @@ target_sources(IztaDBBench
         PRIVATE
         bench/bench_put_sequential.cpp
         bench/bench_put_flush_boundary.cpp
+        bench/bench_get_memtable.cpp
+        bench/bench_get_sstable_single.cpp
+        bench/bench_get_sstable_scaling.cpp
+        bench/bench_get_notfound_scaling.cpp
         src/iztadb.cpp
         src/log_reader.cpp
         src/log_writer.cpp

@@ -28,7 +28,6 @@ class SequentialPutFixture : public benchmark::Fixture {
         // All values are x*100
         value = std::string(100, 'x');
 
-
         // Add keys in format key_000000000000, key_000000000001
         keys.clear();
         keys.reserve(kNumOps);
@@ -46,6 +45,7 @@ class SequentialPutFixture : public benchmark::Fixture {
     }
 };
 
+// Execute a put operation.
 BENCHMARK_DEFINE_F(SequentialPutFixture, ColdPut)(benchmark::State& state) {
     size_t i = 0;
     for (auto _ : state) {
@@ -55,6 +55,7 @@ BENCHMARK_DEFINE_F(SequentialPutFixture, ColdPut)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations());
 }
 
+// Repeat 500 times per repetition.
 BENCHMARK_REGISTER_F(SequentialPutFixture, ColdPut)
     ->Iterations(SequentialPutFixture::kNumOps)
     ->UseRealTime()
