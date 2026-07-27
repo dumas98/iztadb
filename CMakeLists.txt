@@ -149,6 +149,8 @@ target_sources(IztaDBBench
         bench/bench_get_sstable_single.cpp
         bench/bench_get_sstable_scaling.cpp
         bench/bench_get_notfound_scaling.cpp
+        bench/bench_recovery_time.cpp
+        bench/bench_crc32_block.cpp
         src/iztadb.cpp
         src/log_reader.cpp
         src/log_writer.cpp

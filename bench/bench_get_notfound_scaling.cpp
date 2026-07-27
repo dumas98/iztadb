@@ -56,7 +56,7 @@ protected:
         }
 
         // This key was never inserted use zzz so
-        missing_key = "zzz_this_key_was_never_inserted";
+        missing_key = "aaa_this_key_was_never_inserted";
 
         // Run once to "warm-up" so when the actual benchmark is running
         // it simulates production.
