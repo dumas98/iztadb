@@ -139,7 +139,6 @@ target_link_libraries(IztaDBTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(IztaDBTest)
 
 # IztaDB Benchmarks.
-# IztaDB Benchmarks.
 add_executable(IztaDBBench)
 target_sources(IztaDBBench
         PRIVATE
@@ -151,6 +150,9 @@ target_sources(IztaDBBench
         bench/bench_get_notfound_scaling.cpp
         bench/bench_recovery_time.cpp
         bench/bench_crc32_block.cpp
+        bench/bench_value_size_get.cpp
+        bench/bench_value_size_put.cpp
+        bench/bench_space_amplification.cpp
         src/iztadb.cpp
         src/log_reader.cpp
         src/log_writer.cpp
