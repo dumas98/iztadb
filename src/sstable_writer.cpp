@@ -19,13 +19,24 @@ SSTableWriter::SSTableWriter(const std::string& sst_path, uintmax_t block_size) 
 }
 
 bool SSTableWriter::flush_mem_table(const MemTable& mem_table) {
+    // Write to this writer's own auto-numbered path.
+    if (!flush_map(mem_table.get_map(), write_path)) return false;
+
+    // Recalculate write path
+    latest_segment_num++;
+    write_path = sst_path + "/" + std::format("{:06d}.sst", latest_segment_num + 1);
+
+    return true;
+}
+
+bool SSTableWriter::flush_map(const std::map<std::string, Entry>& records, const std::filesystem::path& out_path) {
 
     // Start from blank state.
     index_entries.clear();
     block_buffer.clear();
 
     // Open new file.
-    file.open(write_path, std::ios::binary);
+    file.open(out_path, std::ios::binary);
     if (!file.is_open()) return false;
 
     // Declare counters to keep track of movements inside file.
@@ -34,7 +45,7 @@ bool SSTableWriter::flush_mem_table(const MemTable& mem_table) {
     std::string last_key;
 
     // Write records for each key-value pair.
-    for (const auto& [key, entry] : mem_table.get_map()) {
+    for (const auto& [key, entry] : records) {
         build_block_buffer(key, entry, block_counter);
         last_key = key;
         // Stop Block when it's larger than 4KB.
@@ -56,12 +67,7 @@ bool SSTableWriter::flush_mem_table(const MemTable& mem_table) {
     write_footer(index_offset);
     file.close();
 
-    // Recalculate write path
-    latest_segment_num++;
-    write_path = sst_path + "/" + std::format("{:06d}.sst", latest_segment_num + 1);
-
     return true;
-
 }
 
 void SSTableWriter::build_block_buffer(const std::string& key, const Entry& entry, uint32_t& block_counter) {

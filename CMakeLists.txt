@@ -138,6 +138,24 @@ target_include_directories(IztaDBTest PRIVATE src)
 target_link_libraries(IztaDBTest GTest::gtest_main ZLIB::ZLIB)
 gtest_discover_tests(IztaDBTest)
 
+# Compaction.
+add_executable(CompactionTest)
+target_sources(CompactionTest
+        PRIVATE
+        tests/compaction_test.cpp
+        src/iztadb.cpp
+        src/log_reader.cpp
+        src/log_writer.cpp
+        src/log_utils.cpp
+        src/sstable_writer.cpp
+        src/sstable_reader.cpp
+        src/sstable_utils.cpp
+        src/memtable.cpp
+)
+target_include_directories(CompactionTest PRIVATE src)
+target_link_libraries(CompactionTest GTest::gtest_main ZLIB::ZLIB)
+gtest_discover_tests(CompactionTest)
+
 # IztaDB Benchmarks.
 add_executable(IztaDBBench)
 target_sources(IztaDBBench

@@ -11,6 +11,12 @@ namespace iztadb::sstable {
     int calculate_latest_segment(const std::string& sst_path) {
         int latest_segment_num = 0;
 
+        // A directory that was never created holds no segments. Checked before
+        // is_empty(), which throws instead of returning true on a missing path.
+        if (!std::filesystem::exists(sst_path)) {
+            return latest_segment_num;
+        }
+
         // No files exist, use zero.
         if (std::filesystem::is_empty(sst_path)) {
             return latest_segment_num;

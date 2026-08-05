@@ -11,7 +11,7 @@ namespace iztadb::sstable {
      * @brief Returns the highest numbered log segment in the SST directory.
      *
      * @param sst_path Path to the SST directory.
-     * @return Max segment number, 0 if directory is empty.
+     * @return Max segment number, 0 if the directory is empty or does not exist.
      */
     int calculate_latest_segment(const std::string& sst_path);
 

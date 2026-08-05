@@ -11,7 +11,7 @@ namespace iztadb::wal {
      * @brief Returns the highest numbered log segment in the WAL directory.
      *
      * @param wal_path Path to the WAL directory.
-     * @return Max segment number, 0 if directory is empty.
+     * @return Max segment number, 0 if the directory is empty or does not exist.
      */
     int calculate_latest_segment(const std::string& wal_path);
 

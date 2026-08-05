@@ -11,6 +11,12 @@ namespace iztadb::wal {
     int calculate_latest_segment(const std::string& wal_path) {
         int latest_segment_num = 0;
 
+        // A directory that was never created holds no segments. Checked before
+        // is_empty(), which throws instead of returning true on a missing path.
+        if (!std::filesystem::exists(wal_path)) {
+            return latest_segment_num;
+        }
+
         // No files exist, use zero.
         if (std::filesystem::is_empty(wal_path)) {
             return latest_segment_num;

@@ -32,13 +32,19 @@ protected:
         // What run, evaluates from 1 to 32, increments of 2: [1, 2, 4, 8, 16, 32]
         int64_t num_files = state.range(0);
 
+        // Second argument is the automatic compaction trigger. Each file count is
+        // run twice, once with compaction off to build the baseline curve, once
+        // with it on to show what compaction collapses that curve to.
+        int64_t compaction_trigger = state.range(1);
+
         // Set up MemTable threshold same as the number of keys per file
         // so when the SSTables are populated the lookup is exclusively
         // scanning SSTables and no MemTable.
         db = std::make_unique<IztaDB>(wal_path, sst_path,
                                        kKeysPerFile,
                                        32 * 1024 * 1024,
-                                      4096);
+                                      4096,
+                                      compaction_trigger);
 
         // All values are x*100
         value = std::string(100, 'x');
@@ -69,6 +75,16 @@ protected:
         db.reset();
         std::filesystem::remove_all(bench_dir);
     }
+
+    // How many SSTables the lookup actually has to walk. Reported so the effect
+    // of compaction is visible in the output and not just inferred from timing.
+    double count_sst_files() {
+        double count = 0;
+        for (const auto& entry : std::filesystem::directory_iterator(sst_path)) {
+            if (entry.path().extension() == ".sst") ++count;
+        }
+        return count;
+    }
 };
 
 // Execute a get operation directly to an increasing number of SSTables
@@ -80,12 +96,14 @@ BENCHMARK_DEFINE_F(NotFoundScalingFixture, GetMissingKeyVsN)(benchmark::State& s
         benchmark::DoNotOptimize(result);
     }
     state.SetItemsProcessed(state.iterations());
+    state.counters["sst_files"] = count_sst_files();
 }
 
-// Repeat for N = 1, 2, 4, 8, 16, 32.
+// Repeat for N = 1, 2, 4, 8, 16, 32, each one twice: trigger 0 (compaction off,
+// the baseline) then trigger 10 (compaction on). ArgsProduct varies the second
+// argument fastest, so the two runs for a given N land next to each other.
 BENCHMARK_REGISTER_F(NotFoundScalingFixture, GetMissingKeyVsN)
-    ->RangeMultiplier(2)
-    ->Range(1, 32)
+    ->ArgsProduct({{1, 2, 4, 8, 16, 32}, {0, 10}})
     ->UseRealTime()
     ->Unit(benchmark::kMicrosecond)
     ->Repetitions(5)

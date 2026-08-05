@@ -4,7 +4,9 @@
 
 #pragma once
 #include <fstream>
+#include <utility>
 #include "sstable_utils.h"
+#include "types.h"
 
 /**
  * @brief Reads a single SSTable file and returns the operation result.
@@ -120,6 +122,19 @@ class SSTableReader {
          * fails, the block is corrupted.
          */
         GetResult get(const std::string& key);
+
+        /**
+         * @brief Reads every record in this SSTable, in ascending key order.
+         *
+         * Scans all blocks in index order, verifying each one's checksum, and
+         * decodes every record it holds. Tombstones are returned as they are stored,
+         * with ValueType::TOMBSTONE and an empty value.
+         *
+         * @return Every record as a (key, Entry) pair, ascending by key.
+         * @throws std::runtime_error if any block's CRC32 check fails, a block
+         * is corrupted.
+         */
+        std::vector<std::pair<std::string, Entry>> read_all_records();
 
         /**
          * @brief Returns the path of the file opened.

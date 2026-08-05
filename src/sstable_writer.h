@@ -113,6 +113,24 @@ class SSTableWriter {
         bool flush_mem_table(const MemTable& mem_table);
 
         /**
+         * @brief Writes a sorted map of records into a new SSTable file at an
+         * explicit path.
+         *
+         * Holds the actual serialization: data blocks, sparse index and footer.
+         * flush_mem_table() is a thin wrapper over this that supplies its own
+         * auto-numbered write_path.
+         *
+         * Deliberately does not touch latest_segment_num or write_path, so a
+         * caller can write to a temporary file name without disturbing this
+         * writer's segment numbering. Compaction relies on that.
+         *
+         * @param records Sorted records to serialize, ascending by key.
+         * @param out_path Exact file path to create.
+         * @return true if the file was written, false if out_path could not be opened.
+         */
+        bool flush_map(const std::map<std::string, Entry>& records, const std::filesystem::path& out_path);
+
+        /**
         * @brief Writes the fixed footer that terminates every SSTable file.
         *
         * Layout: [index_offset (uintmax_t)][magic (uint32_t)], always the last

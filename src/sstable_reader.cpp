@@ -163,6 +163,50 @@ GetResult SSTableReader::get(const std::string& key) {
     return scan_block(block.value(), key);
 }
 
+std::vector<std::pair<std::string, Entry>> SSTableReader::read_all_records() {
+    std::vector<std::pair<std::string, Entry>> records;
+
+    // Walk every block in index order. Blocks are written ascending by key and
+    // records are sorted inside each one, so the result comes out sorted.
+    for (const auto& block : index_entries) {
+
+        // Do checksum test and get data from block as buffer.
+        std::vector<uint8_t> data = verify_and_read_block(block);
+
+        // Position of the current record of buffer.
+        size_t pos = 0;
+
+        // Iterate through buffer, start in beginning. Every record is decoded,
+        // there is no key to compare against and nothing to stop early for.
+        while (pos < data.size()) {
+
+            // Extract record.
+            uint32_t key_len;
+            std::memcpy(&key_len, data.data() + pos, sizeof(key_len));
+            pos += sizeof(key_len);
+
+            std::string record_key(reinterpret_cast<const char*>(data.data() + pos), key_len);
+            pos += key_len;
+
+            uint8_t type;
+            std::memcpy(&type, data.data() + pos, sizeof(type));
+            pos += sizeof(type);
+
+            uint32_t value_len;
+            std::memcpy(&value_len, data.data() + pos, sizeof(value_len));
+            pos += sizeof(value_len);
+
+            // Tombstones store value_size = 0, so this reads an empty string for them.
+            std::string value(reinterpret_cast<const char*>(data.data() + pos), value_len);
+            pos += value_len;
+
+            records.push_back({record_key, Entry{static_cast<ValueType>(type), value}});
+        }
+    }
+
+    return records;
+}
+
 std::filesystem::path SSTableReader::get_sst_path() {
     return sst_path;
 }

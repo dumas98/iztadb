@@ -27,12 +27,18 @@ protected:
         // Number of put + delete pairs: 50, 100, 200, 400, or 800
         int64_t churn_cycles = state.range(0);
 
+        // Second argument is the automatic compaction trigger. Each churn count is
+        // run twice, once with compaction off to show how much garbage accumulates,
+        // once with it on to show how much of that gets reclaimed.
+        int64_t compaction_trigger = state.range(1);
+
         std::filesystem::remove_all(bench_dir);
         // Threshold two flushes per put + delete pairs to increase the number of files.
         db = std::make_unique<IztaDB>(wal_path, sst_path,
                                        kMemtableThreshold,
                                        32 * 1024 * 1024,
-                                       4096);
+                                       4096,
+                                       compaction_trigger);
 
         // Always insert the same value.
         value = std::string(100, 'x');
@@ -74,6 +80,16 @@ protected:
         }
         return total;
     }
+
+    // How many SSTables the garbage is spread across. Reported so the effect of
+    // compaction is visible in the output and not just inferred from the ratio.
+    double count_sst_files() const {
+        double count = 0;
+        for (const auto& entry : std::filesystem::directory_iterator(sst_path)) {
+            if (entry.path().extension() == ".sst") ++count;
+        }
+        return count;
+    }
 };
 
 // Test won't use time, it will measure how much disk space increments as garbage
@@ -93,13 +109,16 @@ BENCHMARK_DEFINE_F(SpaceAmplificationFixture, DiskVsLiveBytes)(benchmark::State&
         state.counters["disk_bytes"] = static_cast<double>(disk_bytes);
         state.counters["live_bytes"] = static_cast<double>(anchor_live_bytes);
         state.counters["amp_ratio"]  = ratio;
+        state.counters["sst_files"]  = count_sst_files();
         state.ResumeTiming();
     }
 }
 
+// churn_cycles, the same points the old Range(50, 800) with multiplier 2 produced.
+// Each one runs twice: trigger 0 (compaction off, the baseline) then trigger 10
+// (compaction on). ArgsProduct varies the second argument fastest, so the two runs
+// for a given churn count land next to each other.
 BENCHMARK_REGISTER_F(SpaceAmplificationFixture, DiskVsLiveBytes)
-    ->RangeMultiplier(2)
-    // churn_cycles: 50, 100, 200, 400, 800 put+delete pairs.
-    ->Range(50, 800)
+    ->ArgsProduct({{50, 64, 128, 256, 512, 800}, {0, 10}})
     ->Iterations(1)
     ->UseRealTime();
