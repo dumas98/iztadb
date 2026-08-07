@@ -20,8 +20,8 @@
 - [Benchmarking](#benchmarking)
   - [Main Benchmarks Takeaways](#main-benchmarks-takeaways)
 - [Improvements and Future Work](#improvements-and-future-work)
-- [Appendix A — Benchmark Details](#appendix-a--benchmark-details)
-- [Appendix B — References](#appendix-b--references)
+- [Appendix A: Benchmark Details](#appendix-a--benchmark-details)
+- [Appendix B: References](#appendix-b--references)
 
 ---
 
@@ -162,23 +162,29 @@ After extensively benchmarking IztaDB, these were the most important discoveries
 
 ## Improvements and Future Work
 
-IztaDB could be used in production today and it would hold on to its promises, however as it was explored during the testing and benchmarking phases there are many improvements for the current codebase:
+IztaDB could be used in production today and it would hold on to its promises, however as it was explored during the testing and benchmarking phases there are many improvements for the current codebase. These were divided into three tiers. The first one is related to implementation improvements that would significantly increase the performance, these need to be addressed immediately. The second tier is related to benchmarking, running a deeper investigation on durability and testing IztaDB in extreme scenarios using more powerful compute resources. Thirdly are more long term improvements that could make IztaDB ready for a production environment with concurrency and networking. Each of the subitems are ordered in ascending order the first one having the upmost priority:
+
+### Tier 1: Short Term, implementation heavy
 
 - Reduce the write time, instead of calculating the write path by scanning the WAL directory each call to the LogWriter, experiment having a variable in-memory and only recalculate when completely necessary (once the threshold was exceeded). Related to this, build checksums for each WAL file instead of each record, reducing the amount of times a checksum is calculated.
+
+- Make the key and value sizes unrestricted, currently the WAL has a restriction in the sizes and it's limiting for workloads that require more characters. It's an easy fix that resembles the records structure of the SSTables.
 
 - Add bloom filters: this is vital to reduce the time it takes to scan a full block. These prevent it by guaranteeing that a record is not inside the block. In the scenario where a record isn't inside any SSTable it will omit all indexes and won't scan unless necessary.
 
 - Build a leveled compaction algorithm on-disk. Currently IztaDB depends on the size of RAM for it to compact the SSTables, if the database exceeds this capacity it will stop working. To prevent this the new compaction algorithm seen in LevelDB will compare on disk using a k-way merge algorithm. Adding the older records to higher levels. A Manifest file to keep control of the growing files needs to be added tracing the changes to the levels.
 
-- Make the key and value sizes unrestricted, currently the WAL has a restriction in the sizes and it's limiting for workloads that require more characters. It's an easy fix that resembles the records structure of the SSTables.
+### Tier 2: Medium Term, extensive benchmarking and durability
 
 - Dig deeper into durability of similar storage engines, what are their policies and given its current capabilities, let the user pick the durability guarantees.
+
+- Expand the benchmarks on different instances, renting more powerful instances on a cloud provider to increase RAM and inserting millions of rows to measure when performance starts degrading and make adjustments based on the results.
+
+### Tier 3: Long Term, making IztaDB ready to survive production environments
 
 - Experiment with a block cache layer. This can help speed up fresher data for workloads that need quick access. Understand how RocksDB uses cache under the hood and use that as inspiration for IztaDBs implementation.
 
 - Create a concurrency protocol for the database. Currently its single threaded but if it's main purpose is for it to be used by sensors or especially IoT devices, multiple writes and reads might be required, most databases have this implemented and it would expand its use cases, this includes a networking layer so it can be accessed remotely.
-
-- Expand the benchmarks on different instances, renting more powerful instances on a cloud provider to increase RAM and inserting millions of rows to measure when performance starts degrading and make adjustments based on the results.
 
 ---
 
