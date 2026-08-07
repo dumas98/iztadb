@@ -1,4 +1,4 @@
-# IztaDB — Design and Implementation
+# IztaDB: Design and Implementation
 
 **Design notes, architecture, and benchmark results for IztaDB, a Log-Structured Merge (LSM) key-value storage engine written in C++, inspired by LevelDB.**
 
@@ -41,7 +41,7 @@ The name IztaDB is based on the Iztaccihuatl volcano in Mexico. In late 2025 I c
 
 I was ready to commit and I decided to build a Log-Structured Merge (LSM) kev-value storage engine inspired by the LevelDB database. Compared to the traditional databases which use B+ trees to store information or sometimes using pointers towards the actual records, an LSM is an append-only engine. There are no updates or deletions. This has several advantages and the most important one is the ability to write quickly, sacrificing read speed since no data structure needs to be edited as new records are appended. B+ trees in contrast are very efficient at reading and updating but not so much writing because the nature of the trees is to stay balanced at all times. Modifications might trigger a rearrangement of the structure incrementing latency.
 
-IztaDB, optimized for is very suitable for workloads where writing as fast as possible is required with a caveat that the data that's inserted doesn't exceed memory size because compaction is done in memory. Think of small devices that need to record events and after a certain amount of data is accumulated, it can be sent to a bigger server that stores the data long term. This makes sense in IoT devices or manufacturing sensors.
+IztaDB, is suitable for workloads where writing as fast as possible is required with a caveat that the data that's inserted doesn't exceed memory size because compaction is done in memory. Think of small devices that need to record events and after a certain amount of data is accumulated, it can be sent to a bigger server that stores the data long term. This makes sense in IoT devices or manufacturing sensors.
 
 Even though reading is slow for IztaDB, several techniques that will be discussed later were built to improve read performance so looking for a specific record is possible if required by another subprocess. Another advantage of IztaDB is its durability promise. Before a record is inserted to the database it's stored in a Write-Ahead-Log (WAL) where it would persist in case of a crash.
 
@@ -131,7 +131,7 @@ Testing helped understand more about the durability of data and identified some 
 
 ## Benchmarking
 
-Measuring performance of the storage engine was one of the most important sections of the project. These will guide the next steps and aid in the understanding of how it is working compared to RockDB, the other database we compared them. A full analysis for each benchmark can be found in Appendix A.
+Measuring performance of the storage engine was one of the most important sections of the project. These will guide the next steps and aid in the understanding of how IztaDB is working compared to RocksDB. A full analysis for each benchmark can be found in Appendix A.
 
 It was complex, making a direct comparison with RocksDB. These was their setup on AWS:
 
@@ -156,7 +156,7 @@ After extensively benchmarking IztaDB, these were the most important discoveries
 
 2. MemTable read had the closest match to RocksDB, IztaDB is more stable here and slight improvements could be useful but not necessarily urgent as this is more than enough. For the SSTables in contrast bloom filters are necessary and/or a block cache because forcing to scan a block is costly if repeated.
 
-3. Unrestricting the key and value sizes is necessary because it doesn't affect latency, as value size grows it follows a logarithmic trend vs. linear. This will also reduce the write latency.
+3. Unrestricting the key and value sizes is necessary because it doesn't affect latency, as value size grows it follows a sub-linear trend vs. linear. This will also reduce the write latency.
 
 ---
 
@@ -182,7 +182,7 @@ IztaDB could be used in production today and it would hold on to its promises, h
 
 ---
 
-## Appendix A — Benchmark Details
+## Appendix A: Benchmark Details
 
 ### Benchmark 1. Cold Put
 
@@ -204,7 +204,7 @@ Values: All are 'X' * 100
 
 **Table A1.** IztaDB vs. RocksDB Put Operation to MemTable
 
-The order of magnitude is around 20x compared to RocksDB. The reason the read path is slower is that each call to write updates the sequence number and recalculates the correct write path. Time could be slashed around 50% if this operation is removed and more improvements could be implemented. As a note RockDB has been tuned heavily over the years so a closer look into their architecture could reduce the time it takes to write to memory. The WAL is also part of the bottleneck and an improvement could be to do only one checksum per WAL file vs. one per record.
+The order of magnitude is around 20x compared to RocksDB. The reason the write path is slower is that each call to write updates the sequence number and recalculates the correct write path. Time could be slashed around 50% if this operation is removed and more improvements could be implemented. As a note RocksDB has been tuned heavily over the years so a closer look into their architecture could reduce the time it takes to write to memory. The WAL is also part of the bottleneck and an improvement could be to do only one checksum per WAL file vs. one per record.
 
 ### Benchmark 2. Put Across Flush
 
@@ -295,7 +295,7 @@ Warm-up cache
 
 **Result and Analysis**
 
-No direct test exists for RocksDB. What this test was useful for was showing the importance of compaction. If one takes a look into the graph below, without compaction time to look into data scales linearly. Once compaction was implemented, latency was significantly reduced and stayed linear. RocksDB also uses compaction and a similar behavior would be expected from it with less latency because it has bloom filters.
+No direct test exists for RocksDB. What this test was useful for was showing the importance of compaction. If one takes a look into the graph below, without compaction time to look into data scales linearly. Once compaction was implemented, latency was significantly reduced and stayed constant. RocksDB also uses compaction and a similar behavior would be expected from it with less latency because it has bloom filters.
 
 <img src="images/graph-a5-oldest-key-scan.png" alt="Latency vs. file size when adding compaction" width="520">
 
@@ -394,7 +394,7 @@ After compaction was implemented it is clear that reducing the size of garbage d
 
 ---
 
-## Appendix B — References
+## Appendix B: References
 
 ### Main References
 
