@@ -69,7 +69,7 @@ SSTables numbering system helps keep track of which is the most recent data as p
 
 This system keeps an accurate history of records explained in the following example. Let's assume a record was deleted and then resurrected, it has the same key but the enum of the record struct changes from TOMBSTONE to VALUE.
 
-![The Write Path](images/figure-01-write-path.png)
+<img src="images/figure-01-write-path.png" alt="The Write Path" width="780">
 
 **Figure 1.** The Write Path
 
@@ -77,7 +77,7 @@ This system keeps an accurate history of records explained in the following exam
 
 The read path is shown in Figure 2. The first step is to look into the MemTable. If the record isn't found there, then the engine will scan each SSTable. The worst case (when a record wasn't found) would be to scan the full table.
 
-![The Read Path](images/figure-02-read-path.png)
+<img src="images/figure-02-read-path.png" alt="The Read Path" width="620">
 
 **Figure 2.** The read path
 
@@ -89,7 +89,7 @@ When writing data to disk, binary files were used because it proved to be simple
 
 Each WAL record has the same format. It consists of a struct (see Figure 3) that contains a sequence number which increases for each record, a checksum using the algorithm CRC32, the record type (if it's a value or tombstone record) and the actual key and value. Notice that the length for both the key and value are fixed. This limits the number of characters a user can write to keys and values. To prevent performance degradation from the WAL a threshold exists so WAL records are stored in different files. And when the MemTable is rebuilt from WAL, it scans through each of these files.
 
-![The WAL Record struct](images/figure-03-wal-record-struct.png)
+<img src="images/figure-03-wal-record-struct.png" alt="The WAL Record struct" width="780">
 
 **Figure 3.** the WAL Record struct.
 
@@ -99,7 +99,7 @@ Every time a new instance of IztaDB is created the first step is to check whethe
 
 SSTables has three main components (See Figure 4). First, there are the data blocks. These contain the actual records and in comparison with the WAL records, have variable key and value sizes in order to reduce space and improve read performance. Records contain the length of the keys and values to correctly move between them and the type of transaction. After all records are stored, the block 'is closed' by inserting a checksum used on the read path to verify data is uncorrupted, this happens when the block size threshold is reached. The default set is 4KB, which RocksDB uses as its minimum. Secondly, in parallel when closing a block a sparse index is created to access blocks and reduce search time. Each index contains the last key of the data block, its length, the block offset relative to the start of the file and its size in bytes. Finally at the end of the file a footer exists, this indicates where the sparse indexes start using an offset and has a fixed magic value, in this case it's the bytes for 'IZDB' which guarantees data isn't corrupted.
 
-![Anatomy of an SSTable](images/figure-04-sstable-anatomy.png)
+<img src="images/figure-04-sstable-anatomy.png" alt="Anatomy of an SSTable" width="560">
 
 **Figure 4.** Anatomy of an SSTable.
 
@@ -123,7 +123,7 @@ To verify each agent and the overall database was built correctly every single c
 
 Testing helped understand more about the durability of data and identified some weaknesses. For example the current database isn't capable of detecting if a WAL file was truncated and the exact point where it was truncated was exactly between records. To solve this problem an end of record struct was added to each WAL file. This solved the issue for intermediate files but for the latest WAL files it is unclear if data was truncated.
 
-![Durability limitations](images/figure-05-durability-limitations.png)
+<img src="images/figure-05-durability-limitations.png" alt="Durability limitations" width="620">
 
 **Figure 5.** Durability limitations
 
@@ -200,7 +200,7 @@ Values: All are 'X' * 100
 
 **Result and Analysis**
 
-![IztaDB vs. RocksDB Put Operation to MemTable](images/table-a1-cold-put.png)
+<img src="images/table-a1-cold-put.png" alt="IztaDB vs. RocksDB Put Operation to MemTable" width="480">
 
 **Table A1.** IztaDB vs. RocksDB Put Operation to MemTable
 
@@ -224,7 +224,7 @@ Values: All are 'X' * 100
 
 To verify that the results were accurate, two different stages were measured. Regular record operation time vs. flush. For non-flush operations the P99 tail was 98.17 us. However in the next graph one can see that flush operations took significantly longer than the non-flush records, even the flush record minimum is significantly larger than the P99 for non-flush. As expected, flushing the MemTable takes more time vs. a standard put to the MemTable.
 
-![Flush vs. non-flush latency](images/graph-a2-flush-vs-nonflush.png)
+<img src="images/graph-a2-flush-vs-nonflush.png" alt="Flush vs. non-flush latency" width="520">
 
 **Graph A2.** Flush vs. non-flush latency
 
@@ -246,7 +246,7 @@ Values: All are 'X' * 100
 
 **Result and Analysis**
 
-![IztaDB vs. RocksDB Get operation MemTable](images/table-a3-memtable-get.png)
+<img src="images/table-a3-memtable-get.png" alt="IztaDB vs. RocksDB Get operation MemTable" width="480">
 
 **Table A3.** IztaDB vs. RocksDB Get operation MemTable
 
@@ -270,7 +270,7 @@ Before executing the get operation, data is warmed in cache by running the get c
 
 **Result and Analysis**
 
-![IztaDB vs. RocksDB Get operation single SSTable](images/table-a4-single-sstable-get.png)
+<img src="images/table-a4-single-sstable-get.png" alt="IztaDB vs. RocksDB Get operation single SSTable" width="480">
 
 **Table A4.** IztaDB vs. RocksDB Get operation single SSTable
 
@@ -297,7 +297,7 @@ Warm-up cache
 
 No direct test exists for RocksDB. What this test was useful for was showing the importance of compaction. If one takes a look into the graph below, without compaction time to look into data scales linearly. Once compaction was implemented, latency was significantly reduced and stayed linear. RocksDB also uses compaction and a similar behavior would be expected from it with less latency because it has bloom filters.
 
-![Latency vs. file size when adding compaction](images/graph-a5-oldest-key-scan.png)
+<img src="images/graph-a5-oldest-key-scan.png" alt="Latency vs. file size when adding compaction" width="520">
 
 **Graph A5.** Latency (us) vs. file size when adding compaction
 
@@ -305,7 +305,7 @@ No direct test exists for RocksDB. What this test was useful for was showing the
 
 This benchmark is practically the same as Benchmark 5 with a small twist, the data it's looking for doesn't exist in any SSTable but it uses as the look key 'aaa_never_inserted' so it's forced to scan at least one block and scan all the SSTables. The results are practically the same compared to Benchmark 5. (See graph below).
 
-![Latency vs. file size when adding compaction](images/graph-a6-missing-key-scan.png)
+<img src="images/graph-a6-missing-key-scan.png" alt="Latency vs. file size when adding compaction" width="520">
 
 **Graph A6.** Latency (us) vs. file size when adding compaction
 
@@ -327,7 +327,7 @@ Values: All are 'X' * 100
 
 As seen in the results graph below, data has a linear trend, the more files, the longer it takes for WAL to restore. RocksDB didn't record this in its benchmarks, this is a predictable linear trend and it would be hard to reduce the time because there is no WAL compaction, every single record that gets inserted to the MemTable is added in parallel to the WAL.
 
-![Latency vs. file size of WAL recovery](images/graph-a7-wal-recovery.png)
+<img src="images/graph-a7-wal-recovery.png" alt="Latency vs. file size of WAL recovery" width="520">
 
 **Graph A7.** Latency (ms) vs. file size of WAL recovery
 
@@ -337,7 +337,7 @@ As seen in the results graph below, data has a linear trend, the more files, the
 
 **Result and Analysis**
 
-![IztaDB performance of CRC32](images/table-a8-crc32.png)
+<img src="images/table-a8-crc32.png" alt="IztaDB performance of CRC32" width="340">
 
 **Table A8.** IztaDB performance of CRC32
 
@@ -361,11 +361,11 @@ Values: All are 'X' * 100
 
 This test wasn't reported on the RocksDB repository. For the put operation, as expected given that all keys and values have the same bytes in size, there was no difference in the latency (see graph B9.1). Hence, this limits performance because even a KV pair of one byte has the same latency as one that has 256. Compare this to the get operation where a slight trend upwards can be observed (see graph B9.2). The growth is around 16% from 2 to 256 bytes. There was always some noise when the tests were run because of flushing but 256 tended to be higher. This means value size doesn't make latency grow linearly so unrestricting the value and key is the right move for the improvements.
 
-![Put Latency vs. value size](images/graph-a9-1-put-vs-value-size.png)
+<img src="images/graph-a9-1-put-vs-value-size.png" alt="Put Latency vs. value size" width="520">
 
 **Graph A9.1.** Put Latency (ms) vs. value size
 
-![Get Latency vs. value size](images/graph-a9-2-get-vs-value-size.png)
+<img src="images/graph-a9-2-get-vs-value-size.png" alt="Get Latency vs. value size" width="520">
 
 **Graph A9.2.** Get Latency (ms) vs. value size
 
@@ -388,7 +388,7 @@ Keys: anchor_000000000000 for live keys and churn_000000000000 for garbage
 
 After compaction was implemented it is clear that reducing the size of garbage drastically reduced latency and it stabilized this. Even though a direct benchmark doesn't exist for RocksDB, it implements compaction as well. This graph proves the importance of compaction: a constant stable trend is the goal is preferred to a linear increase in latency. It is important to develop an on-disk compaction algorithm so the limitation isn't RAM size.
 
-![Write Amp Ratio vs. churn cycles](images/graph-a10-space-amplification.png)
+<img src="images/graph-a10-space-amplification.png" alt="Write Amp Ratio vs. churn cycles" width="520">
 
 **Graph A10.** Write Amp Ratio (Total Disk Bytes / Live Bytes (Non-garbage)) vs. churn cycles
 
